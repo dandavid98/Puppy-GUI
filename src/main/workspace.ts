@@ -21,7 +21,7 @@ function isDirectory(path: string): boolean {
   }
 }
 
-/** Merge what ACP knows (id, cwd) with what we know (kind, title, recency). */
+/** Merge what ACP knows (id, cwd) with what we know (kind, title, recency, pin, folder). */
 export function summarize(info: SessionInfo, meta: SessionMeta): SessionSummary {
   return {
     sessionId: info.sessionId,
@@ -30,6 +30,8 @@ export function summarize(info: SessionInfo, meta: SessionMeta): SessionSummary 
     title: meta.title,
     updatedAt: meta.updatedAt,
     contextTokens: meta.contextTokens ?? null,
+    pinned: meta.pinned ?? false,
+    folderId: meta.folderId ?? null,
   }
 }
 

@@ -3,9 +3,11 @@ import { join } from 'node:path'
 import { app, BrowserWindow, nativeTheme, powerMonitor, session, shell } from 'electron'
 import { AgentPool } from './acp/agentPool'
 import { PuppyAgent } from './acp/puppyAgent'
+import { FolderStore } from './folders'
 import { applyTheme, registerIpc } from './ipc'
 import { locateCodePuppy } from './locateCodePuppy'
 import { readContextLengths } from './modelCatalog'
+import { Organizer } from './organizer'
 import { allowLocalFraming, handlePreviewProtocol, registerPreviewScheme } from './preview'
 import { pythonNextTo, QuotaService } from './quota'
 import { SessionIndex } from './sessionIndex'
@@ -81,6 +83,7 @@ void app.whenReady().then(() => {
   const agents = new AgentPool((folder) => new PuppyAgent(locateCodePuppy, folder, info.logPath, info.version), chatDir)
   const index = new SessionIndex(join(data, 'sessions.json'))
   const workspace = new Workspace(agents, index, settings, chatDir, () => readContextLengths())
+  const organizer = new Organizer(index, new FolderStore(join(data, 'folders.json')))
 
   // The user's real quota, read through code-puppy's own Python (never touching their token).
   const quota = new QuotaService(() => pythonNextTo(locateCodePuppy()))
@@ -89,7 +92,7 @@ void app.whenReady().then(() => {
   const previewDir = join(data, 'previews')
   handlePreviewProtocol(() => [previewDir, ...workspace.roots])
   allowLocalFraming(session.defaultSession)
-  registerIpc({ agents, workspace, settings, quota, info, previewDir, window: () => mainWindow })
+  registerIpc({ agents, workspace, organizer, settings, quota, info, previewDir, window: () => mainWindow })
   openWindow()
   mkdirSync(chatDir, { recursive: true }) // the home process starts in it
   void agents.home.context().catch(() => undefined) // warm up now; errors reach the UI via status events

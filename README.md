@@ -53,6 +53,11 @@ If your network blocks npm or GitHub (a company Artifactory, say), keep that con
   message; `jsonLinesOnly` strips them or `initialize` never gets an answer.
 - npm 11 skips dependency install scripts, so `scripts/ensure-electron.cjs`
   downloads the Electron binary (it honours `ELECTRON_MIRROR`; see "Behind a mirror or proxy").
+- **Pins and folders** (`src/main/organizer.ts`, `folders.ts`, `src/renderer/src/lib/organize.ts`). Both are our own bookkeeping, never
+  Code Puppy's: `pinned`/`folderId` live in `sessions.json`, the folders themselves in `folders.json`. A folder belongs to one tab
+  (chat or code) and the main process refuses to file a chat in a code folder. Deleting a folder keeps its conversations. The
+  sidebar treats a conversation with an unknown folder as unfiled, so nothing can vanish. Order: pinned chats, folders (pinned first,
+  then A-Z), then the rest by day. A pin inside a folder stays inside it.
 - **Big images are shrunk before sending** (`src/renderer/src/lib/attachments.ts`). We accept up to 30 MB, but anything over
   ~3.5 MB is re-encoded in the renderer (lossless PNG if that fits, else JPEG at falling quality/size, long edge <= 2048)
   and the composer says so. Smaller images are sent byte for byte. An unshrunk 9.7 MB image got no reply from the model.

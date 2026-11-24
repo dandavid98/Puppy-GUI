@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
-import type { Attachment, SessionSummary, Settings, WorkspaceKind } from '@shared/api'
+import type { Attachment, ChatFolder, FolderPatch, SessionSummary, Settings, WorkspaceKind } from '@shared/api'
 import { isLocalUrl, previewTarget, webTarget, type PreviewTarget } from '@shared/preview'
 import { initialState, reducer, type Action } from './store'
 
@@ -23,18 +23,22 @@ function webPreview(url: string): PreviewTarget | null {
 export function usePuppy() {
   const [state, dispatch] = useReducer(reducer, initialState)
 
-  /** Run an action; failures become a dismissible notice instead of vanishing. */
-  const guard = useCallback(async (work: () => Promise<unknown>) => {
+  /** Run an action; failures become a dismissible notice instead of vanishing. Says whether it worked. */
+  const guard = useCallback(async (work: () => Promise<unknown>): Promise<boolean> => {
     try {
       await work()
+      return true
     } catch (error) {
       dispatch({ type: 'notice', message: readableError(error) })
+      return false
     }
   }, [])
 
   const refreshSessions = useCallback(async () => {
     try {
-      dispatch({ type: 'sessions', sessions: await api.listSessions() })
+      const [sessions, folders] = await Promise.all([api.listSessions(), api.listFolders()])
+      dispatch({ type: 'sessions', sessions })
+      dispatch({ type: 'folders', folders })
     } catch {
       // The sidebar keeps its last good list; status events report real outages.
     }
@@ -124,6 +128,12 @@ export function usePuppy() {
 
   const actions = useMemo(() => {
     const go = (action: Action) => () => dispatch(action)
+    /** Something about pins or folders changed: do it, then show the new arrangement. */
+    const filing = (work: () => Promise<unknown>) =>
+      guard(async () => {
+        await work()
+        await refreshSessions()
+      })
     return {
       send,
       open,
@@ -156,6 +166,18 @@ export function usePuppy() {
           await api.renameSession(sessionId, title)
           await refreshSessions()
         }),
+      pinSession: (sessionId: string, pinned: boolean) => filing(() => api.pinSession(sessionId, pinned)),
+      moveSession: (sessionId: string, folderId: string | null) => filing(() => api.moveSession(sessionId, folderId)),
+      updateFolder: (id: string, patch: FolderPatch) => filing(() => api.updateFolder(id, patch)),
+      deleteFolder: (id: string) => filing(() => api.deleteFolder(id)),
+      /** Makes the folder, and files `sessionId` in it when given. Resolves to whether the folder was made. */
+      createFolder: async (name: string, kind: WorkspaceKind, sessionId?: string) => {
+        const made: ChatFolder[] = []
+        const created = await guard(async () => void made.push(await api.createFolder(name, kind)))
+        if (made[0] && sessionId) await guard(() => api.moveSession(sessionId, made[0].id))
+        await refreshSessions()
+        return created
+      },
       deleteSession: (sessionId: string) =>
         guard(async () => {
           await api.deleteSession(sessionId)

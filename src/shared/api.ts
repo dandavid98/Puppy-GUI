@@ -79,7 +79,23 @@ export interface SessionSummary {
   title: string | null
   updatedAt: string | null
   contextTokens: number | null
+  /** Pinned conversations stay at the top of wherever they live (their folder, or the sidebar). */
+  pinned: boolean
+  /** The user's folder this conversation was filed in, if any. */
+  folderId: string | null
 }
+
+/** A folder the user made to file conversations in. Each belongs to one tab: chat folders hold chats, code folders hold code sessions. */
+export interface ChatFolder {
+  id: string
+  name: string
+  kind: WorkspaceKind
+  pinned: boolean
+  /** Shown closed in the sidebar. */
+  collapsed: boolean
+}
+
+export type FolderPatch = Partial<Pick<ChatFolder, 'name' | 'pinned' | 'collapsed'>>
 
 /** What the UI needs after `session/new` or `session/load`. */
 export interface OpenedSession {
@@ -110,6 +126,14 @@ export interface PuppyApi {
   loadSession(sessionId: string, cwd: string): Promise<OpenedSession>
   renameSession(sessionId: string, title: string): Promise<void>
   deleteSession(sessionId: string): Promise<void>
+  pinSession(sessionId: string, pinned: boolean): Promise<void>
+  /** File a conversation in a folder (of its own tab), or take it out with null. */
+  moveSession(sessionId: string, folderId: string | null): Promise<void>
+  listFolders(): Promise<ChatFolder[]>
+  createFolder(name: string, kind: WorkspaceKind): Promise<ChatFolder>
+  updateFolder(id: string, patch: FolderPatch): Promise<void>
+  /** Removes the folder only: its conversations are kept and go back to the main list. */
+  deleteFolder(id: string): Promise<void>
   prompt(sessionId: string, text: string, attachments?: Attachment[]): Promise<TurnResult>
   cancel(sessionId: string): Promise<void>
   /** Code Puppy's model list, available before any conversation exists. */
@@ -152,6 +176,12 @@ export const Invoke = {
   loadSession: 'session:load',
   renameSession: 'session:rename',
   deleteSession: 'session:delete',
+  pinSession: 'session:pin',
+  moveSession: 'session:move',
+  listFolders: 'folder:list',
+  createFolder: 'folder:create',
+  updateFolder: 'folder:update',
+  deleteFolder: 'folder:delete',
   prompt: 'session:prompt',
   cancel: 'session:cancel',
   getConfigOptions: 'model:options',

@@ -9,6 +9,10 @@ export interface SessionMeta {
   customTitle?: boolean
   /** Estimated context window fill after the last turn, so reopening a chat still shows it. */
   contextTokens?: number
+  /** Pinned conversations stay at the top of wherever they live. */
+  pinned?: boolean
+  /** The user's folder it is filed in (see folders.ts). Absent when it is not in one. */
+  folderId?: string
 }
 
 /**
@@ -39,6 +43,14 @@ export class SessionIndex {
 
   remove(sessionId: string): void {
     delete this.entries[sessionId]
+    writeJsonAtomic(this.path, this.entries)
+  }
+
+  /** A folder was deleted: everything filed in it goes back to the main list. */
+  clearFolder(folderId: string): void {
+    const filed = Object.values(this.entries).filter((meta) => meta.folderId === folderId)
+    if (!filed.length) return
+    for (const meta of filed) delete meta.folderId
     writeJsonAtomic(this.path, this.entries)
   }
 

@@ -110,14 +110,13 @@ export function App() {
       {sidebarOpen && (
         <Sidebar
           sessions={state.sessions}
+          folders={state.folders}
           activeId={state.activeId}
           mode={state.mode}
           status={state.status}
           settingsOpen={inSettings}
           onNew={actions.newConversation}
-          onOpen={(session) => void actions.open(session)}
-          onRename={(sessionId, newTitle) => void actions.renameSession(sessionId, newTitle)}
-          onDelete={(sessionId) => void actions.deleteSession(sessionId)}
+          actions={actions}
           onTheme={(theme) => void actions.updateSettings({ theme })}
           onSettings={actions.openSettings}
           onCollapse={() => setSidebarOpen(false)}

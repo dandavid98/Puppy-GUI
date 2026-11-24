@@ -108,3 +108,15 @@ describe('turn bookkeeping', () => {
     expect(reopened.threads.s1).toMatchObject({ contextTokens: 42_000, replaying: true })
   })
 })
+
+describe('folders', () => {
+  it('are kept apart from the conversation list, and a removed conversation leaves them alone', () => {
+    const folders = [{ id: 'f1', name: 'Recipes', kind: 'chat' as const, pinned: true, collapsed: false }]
+    const filed = { sessionId: 's1', cwd: '/', kind: 'chat' as const, title: 'x', updatedAt: null, contextTokens: null, pinned: false, folderId: 'f1' }
+    const loaded = run(initialState, { type: 'folders', folders }, { type: 'sessions', sessions: [filed] })
+    expect(loaded.folders).toEqual(folders)
+    const after = run(loaded, { type: 'removed', sessionId: 's1' })
+    expect(after.sessions).toEqual([])
+    expect(after.folders).toEqual(folders)
+  })
+})

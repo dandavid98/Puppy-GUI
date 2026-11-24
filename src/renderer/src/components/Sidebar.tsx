@@ -1,21 +1,17 @@
-import { useState } from 'react'
 import { CodeXml, MessagesSquare, Moon, PanelLeftClose, PawPrint, Plus, Settings as SettingsIcon, Sun } from 'lucide-react'
-import type { AgentStatus, SessionSummary, ThemePreference, WorkspaceKind } from '@shared/api'
-import { groupByRecency } from '../lib/format'
+import type { AgentStatus, ChatFolder, SessionSummary, ThemePreference, WorkspaceKind } from '@shared/api'
 import { useDarkMode } from '../lib/useDarkMode'
-import { SessionRow } from './SessionRow'
-import { ConfirmDialog } from './ui/ConfirmDialog'
+import { ConversationList, type ConversationActions } from './ConversationList'
 
 interface Props {
   sessions: SessionSummary[]
+  folders: ChatFolder[]
   activeId: string | null
   mode: WorkspaceKind
   status: AgentStatus
   settingsOpen: boolean
   onNew: (kind: WorkspaceKind) => void
-  onOpen: (session: SessionSummary) => void
-  onRename: (sessionId: string, title: string) => void
-  onDelete: (sessionId: string) => void
+  actions: ConversationActions
   onTheme: (theme: ThemePreference) => void
   onSettings: () => void
   onCollapse: () => void
@@ -48,10 +44,8 @@ function NavItem({ active, icon: Icon, label, onClick }: { active: boolean; icon
 }
 
 export function Sidebar(props: Props) {
-  const { sessions, activeId, mode, status, settingsOpen, onNew, onOpen, onRename, onDelete, onTheme, onSettings, onCollapse } = props
-  const [toDelete, setToDelete] = useState<SessionSummary | null>(null)
+  const { sessions, folders, activeId, mode, status, settingsOpen, actions, onNew, onTheme, onSettings, onCollapse } = props
   const dark = useDarkMode()
-  const groups = groupByRecency(sessions.filter((session) => session.kind === mode))
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-line bg-sidebar" aria-label="Conversations">
@@ -81,26 +75,7 @@ export function Sidebar(props: Props) {
         <NavItem active={!settingsOpen && mode === 'code'} icon={CodeXml} label="Code" onClick={() => onNew('code')} />
       </div>
 
-      <nav className="mt-4 min-h-0 flex-1 overflow-y-auto px-2 pb-4" aria-label="Recent conversations">
-        {groups.length === 0 && <p className="px-2.5 text-sm text-muted">No {mode === 'chat' ? 'chats' : 'code sessions'} yet.</p>}
-        {groups.map((group) => (
-          <section key={group.label} className="mb-4">
-            <h2 className="px-2.5 pb-1 text-xs font-medium text-muted">{group.label}</h2>
-            <ul>
-              {group.sessions.map((session) => (
-                <SessionRow
-                  key={session.sessionId}
-                  session={session}
-                  active={!settingsOpen && session.sessionId === activeId}
-                  onOpen={() => onOpen(session)}
-                  onRename={(title) => onRename(session.sessionId, title)}
-                  onDelete={() => setToDelete(session)}
-                />
-              ))}
-            </ul>
-          </section>
-        ))}
-      </nav>
+      <ConversationList sessions={sessions} folders={folders} mode={mode} activeId={activeId} settingsOpen={settingsOpen} actions={actions} />
 
       <div className="flex items-center gap-1 border-t border-line py-2 pr-2 pl-4">
         <span role="status" className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted">
@@ -127,19 +102,6 @@ export function Sidebar(props: Props) {
           <SettingsIcon size={16} aria-hidden />
         </button>
       </div>
-
-      <ConfirmDialog
-        open={toDelete !== null}
-        title="Delete conversation?"
-        message={`"${toDelete?.title ?? 'Untitled'}" and its history will be permanently deleted.`}
-        confirmLabel="Delete"
-        danger
-        onCancel={() => setToDelete(null)}
-        onConfirm={() => {
-          if (toDelete) onDelete(toDelete.sessionId)
-          setToDelete(null)
-        }}
-      />
     </aside>
   )
 }

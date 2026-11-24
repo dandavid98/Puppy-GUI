@@ -33,7 +33,7 @@ test('after a turn the meter shows the context size, just left of the model pick
 test('a reopened conversation still shows its context size', async () => {
   await page().reload()
   await expect(page().getByText('Code Puppy is ready')).toBeVisible(AGENT)
-  await sidebar(page()).getByRole('button').first().click()
+  await sidebar(page()).locator('li > button').first().click() // the conversation itself (not the New folder button above it)
   await expect(page().getByTestId('context-meter')).toHaveAttribute('data-known', 'true', AGENT)
 })
 

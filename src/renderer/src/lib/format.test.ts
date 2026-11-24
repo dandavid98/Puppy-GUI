@@ -5,7 +5,7 @@ import { folderName, greeting, groupByRecency, prettyPath, recentFolders } from 
 const NOW = new Date(2026, 10, 24, 15, 0) // Tue 24 Nov 2026, 3pm local
 
 const session = (id: string, updatedAt: string | null, kind: 'chat' | 'code' = 'chat', cwd = '/tmp'): SessionSummary => ({
-  sessionId: id, cwd, kind, title: id, updatedAt, contextTokens: null,
+  sessionId: id, cwd, kind, title: id, updatedAt, contextTokens: null, pinned: false, folderId: null,
 })
 
 describe('groupByRecency', () => {

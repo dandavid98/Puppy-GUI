@@ -1,6 +1,6 @@
 import type { AvailableCommand, SessionConfigOption, SessionNotification } from '@agentclientprotocol/sdk'
 import type { PreviewTarget } from '@shared/preview'
-import type { AgentStatus, Attachment, OpenedSession, PermissionPrompt, SessionSummary, QuotaSnapshot, Settings, WorkspaceKind } from '@shared/api'
+import type { AgentStatus, Attachment, ChatFolder, OpenedSession, PermissionPrompt, QuotaSnapshot, SessionSummary, Settings, WorkspaceKind } from '@shared/api'
 import { previewForCompletedCall, previewForReply, type AutoPreview } from './autoPreview'
 import { addError, addUserMessage, applyUpdate, type ThreadItem } from './thread'
 
@@ -18,6 +18,8 @@ export interface Thread extends OpenedSession {
 export interface AppState {
   status: AgentStatus
   sessions: SessionSummary[]
+  /** Folders the user made to file conversations in. */
+  folders: ChatFolder[]
   threads: Record<string, Thread>
   activeId: string | null
   mode: WorkspaceKind
@@ -47,6 +49,7 @@ export interface AppState {
 export type Action =
   | { type: 'status'; status: AgentStatus }
   | { type: 'sessions'; sessions: SessionSummary[] }
+  | { type: 'folders'; folders: ChatFolder[] }
   | { type: 'opened'; session: OpenedSession; contextTokens?: number | null; replaying?: boolean }
   | { type: 'replayed'; sessionId: string }
   | { type: 'activate'; sessionId: string | null }
@@ -71,6 +74,7 @@ export type Action =
 export const initialState: AppState = {
   status: { state: 'starting' },
   sessions: [],
+  folders: [],
   threads: {},
   activeId: null,
   mode: 'chat',
@@ -143,6 +147,8 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, status: action.status }
     case 'sessions':
       return { ...state, sessions: action.sessions }
+    case 'folders':
+      return { ...state, folders: action.folders }
     case 'opened': {
       const { session } = action
       const thread: Thread = {

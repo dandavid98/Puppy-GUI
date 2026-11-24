@@ -4,6 +4,7 @@ import { isLocalUrl, previewTarget } from '@shared/preview'
 import type { AgentPool } from './acp/agentPool'
 import { waitForServer } from './localServer'
 import { readContextLengths } from './modelCatalog'
+import type { Organizer } from './organizer'
 import { openInBrowser, writePreviewHtml } from './preview'
 import type { QuotaService } from './quota'
 import type { SettingsStore } from './settings'
@@ -12,6 +13,7 @@ import type { Workspace } from './workspace'
 interface Deps {
   agents: AgentPool
   workspace: Workspace
+  organizer: Organizer
   settings: SettingsStore
   quota: QuotaService
   info: AppInfo
@@ -26,7 +28,7 @@ export function applyTheme(settings: Settings): void {
 }
 
 /** Wires the `window.puppy` contract (src/shared/api.ts) to the main process. */
-export function registerIpc({ agents, workspace, settings, quota, info, previewDir, window }: Deps): void {
+export function registerIpc({ agents, workspace, organizer, settings, quota, info, previewDir, window }: Deps): void {
   const push = (channel: string, payload?: unknown) => window()?.webContents.send(channel, payload)
   agents.on('status', (status) => push(Push.status, status))
   agents.on('sessionUpdate', (notification) => push(Push.sessionUpdate, notification))
@@ -49,6 +51,14 @@ export function registerIpc({ agents, workspace, settings, quota, info, previewD
   ipcMain.handle(Invoke.loadSession, (_event, sessionId, cwd) => workspace.load(sessionId, cwd))
   ipcMain.handle(Invoke.renameSession, (_event, sessionId, title) => workspace.rename(sessionId, title))
   ipcMain.handle(Invoke.deleteSession, (_event, sessionId) => workspace.remove(sessionId))
+  ipcMain.handle(Invoke.pinSession, (_event, sessionId, pinned) => organizer.pin(String(sessionId), pinned))
+  ipcMain.handle(Invoke.moveSession, (_event, sessionId, folderId) =>
+    organizer.move(String(sessionId), folderId === null ? null : String(folderId)),
+  )
+  ipcMain.handle(Invoke.listFolders, () => organizer.listFolders())
+  ipcMain.handle(Invoke.createFolder, (_event, name, kind) => organizer.createFolder(name, kind))
+  ipcMain.handle(Invoke.updateFolder, (_event, id, patch) => organizer.updateFolder(String(id), patch ?? {}))
+  ipcMain.handle(Invoke.deleteFolder, (_event, id) => organizer.deleteFolder(String(id)))
   ipcMain.handle(Invoke.prompt, (_event, sessionId, text, attachments) => workspace.prompt(sessionId, text, attachments))
   ipcMain.handle(Invoke.cancel, (_event, sessionId) => workspace.cancel(sessionId))
   ipcMain.handle(Invoke.getConfigOptions, () => workspace.configOptions())
