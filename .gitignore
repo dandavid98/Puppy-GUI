@@ -1,0 +1,15 @@
+node_modules/
+# Local per-machine config (mirrors, proxies): see .npmrc.example
+.npmrc
+out/
+dist/
+release/
+.venv/
+venv/
+.env
+.env.*
+*.log
+.DS_Store
+test-results/
+playwright-report/
+coverage/

@@ -1,0 +1,5 @@
+# Optional. Behind a corporate mirror (Artifactory, Nexus, ...)? Copy this file to .npmrc
+# (gitignored) and set your registry. Not needed on the open internet.
+# The lockfile points at registry.npmjs.org; npm swaps in your mirror's host automatically.
+#
+# registry=https://your-mirror.example.com/api/npm/npm/

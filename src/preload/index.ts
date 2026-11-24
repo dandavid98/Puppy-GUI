@@ -1,0 +1,42 @@
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { Invoke, Push, type PuppyApi, type Unsubscribe } from '@shared/api'
+
+function subscribe<T>(channel: string, listener: (payload: T) => void): Unsubscribe {
+  const handler = (_event: IpcRendererEvent, payload: T) => listener(payload)
+  ipcRenderer.on(channel, handler)
+  return () => ipcRenderer.removeListener(channel, handler)
+}
+
+const api: PuppyApi = {
+  getStatus: () => ipcRenderer.invoke(Invoke.getStatus),
+  restartAgent: () => ipcRenderer.invoke(Invoke.restartAgent),
+  getAppInfo: () => ipcRenderer.invoke(Invoke.getAppInfo),
+  revealLog: () => ipcRenderer.invoke(Invoke.revealLog),
+  getSettings: () => ipcRenderer.invoke(Invoke.getSettings),
+  updateSettings: (patch) => ipcRenderer.invoke(Invoke.updateSettings, patch),
+  listSessions: () => ipcRenderer.invoke(Invoke.listSessions),
+  newSession: (kind, cwd) => ipcRenderer.invoke(Invoke.newSession, kind, cwd),
+  loadSession: (sessionId, cwd) => ipcRenderer.invoke(Invoke.loadSession, sessionId, cwd),
+  renameSession: (sessionId, title) => ipcRenderer.invoke(Invoke.renameSession, sessionId, title),
+  deleteSession: (sessionId) => ipcRenderer.invoke(Invoke.deleteSession, sessionId),
+  prompt: (sessionId, text, attachments) => ipcRenderer.invoke(Invoke.prompt, sessionId, text, attachments),
+  cancel: (sessionId) => ipcRenderer.invoke(Invoke.cancel, sessionId),
+  getConfigOptions: () => ipcRenderer.invoke(Invoke.getConfigOptions),
+  setModel: (value, sessionId) => ipcRenderer.invoke(Invoke.setModel, value, sessionId),
+  answerPermission: (requestId, optionId) => ipcRenderer.invoke(Invoke.answerPermission, requestId, optionId),
+  chooseFolder: () => ipcRenderer.invoke(Invoke.chooseFolder),
+  previewHtml: (html) => ipcRenderer.invoke(Invoke.previewHtml, html),
+  openInBrowser: (target) => ipcRenderer.invoke(Invoke.openInBrowser, target),
+  waitForServer: (url) => ipcRenderer.invoke(Invoke.waitForServer, url),
+  getQuota: () => ipcRenderer.invoke(Invoke.getQuota),
+  refreshQuota: () => ipcRenderer.invoke(Invoke.refreshQuota),
+  prepareFolder: (path) => ipcRenderer.invoke(Invoke.prepareFolder, path),
+  getModelContexts: () => ipcRenderer.invoke(Invoke.getModelContexts),
+  onStatus: (listener) => subscribe(Push.status, listener),
+  onSessionUpdate: (listener) => subscribe(Push.sessionUpdate, listener),
+  onPermissionRequest: (listener) => subscribe(Push.permissionRequest, listener),
+  onSessionsChanged: (listener) => subscribe(Push.sessionsChanged, listener),
+  onQuota: (listener) => subscribe(Push.quota, listener),
+}
+
+contextBridge.exposeInMainWorld('puppy', api)

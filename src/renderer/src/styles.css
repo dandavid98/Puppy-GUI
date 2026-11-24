@@ -1,0 +1,131 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+/* Our own palette: warm neutrals + a golden-retriever amber accent.
+   All text/background pairs meet WCAG 2.2 AA (4.5:1) in both themes. */
+@theme {
+  --color-canvas: #faf9f7;
+  --color-sidebar: #f2f0eb;
+  --color-surface: #ffffff;
+  --color-raised: #ebe8e1;
+  --color-line: #e3dfd6;
+  --color-ink: #292824;
+  --color-muted: #66625a;
+  --color-accent: #b45309;
+  --color-on-accent: #ffffff;
+  --color-accent-soft: #fdf3e3;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdecea;
+  --color-added: #e6f4ea;
+  --color-removed: #fce8e6;
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: ui-serif, 'New York', Georgia, serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-canvas: #1e1d1b;
+    --color-sidebar: #171614;
+    --color-surface: #2a2926;
+    --color-raised: #34322e;
+    --color-line: #3b3934;
+    --color-ink: #ece9e2;
+    --color-muted: #aaa59b;
+    --color-accent: #f0a33a;
+    --color-on-accent: #1e1d1b;
+    --color-accent-soft: #3a2c17;
+    --color-danger: #ff8a80;
+    --color-danger-soft: #3b1f1c;
+    --color-added: #1f3326;
+    --color-removed: #3d2220;
+    color-scheme: dark;
+  }
+}
+
+/* Base styles live in @layer base so Tailwind utilities (e.g. focus:outline-none)
+   can override them. Unlayered CSS would beat every utility class. */
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    user-select: none; /* app chrome is not selectable... */
+  }
+
+  .selectable,
+  .prose,
+  textarea {
+    user-select: text; /* ...but conversations are */
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Slim, quiet scrollbars that follow the palette instead of the chunky system ones. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+/* Frameless window: these regions drag the window, controls inside opt out. */
+.drag {
+  -webkit-app-region: drag;
+}
+.drag button,
+.drag select,
+.drag a,
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Markdown prose tuned to the palette. */
+.prose {
+  --tw-prose-body: var(--color-ink);
+  --tw-prose-headings: var(--color-ink);
+  --tw-prose-bold: var(--color-ink);
+  --tw-prose-links: var(--color-accent);
+  --tw-prose-code: var(--color-ink);
+  --tw-prose-bullets: var(--color-muted);
+  --tw-prose-counters: var(--color-muted);
+  --tw-prose-quotes: var(--color-muted);
+  --tw-prose-hr: var(--color-line);
+  --tw-prose-th-borders: var(--color-line);
+  --tw-prose-td-borders: var(--color-line);
+}
+.prose :where(code):not(:where(pre code)) {
+  background: var(--color-raised);
+  border-radius: 0.3rem;
+  padding: 0.1rem 0.3rem;
+  font-weight: 500;
+}
+.prose :where(code):not(:where(pre code))::before,
+.prose :where(code):not(:where(pre code))::after {
+  content: none;
+}
+
+/* Syntax highlighting (highlight.js token classes from rehype-highlight). */
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in { color: #a626a4; }
+.hljs-string, .hljs-attr, .hljs-template-tag { color: #3b7a1e; }
+.hljs-number, .hljs-literal { color: #b45309; }
+.hljs-comment, .hljs-quote { color: var(--color-muted); font-style: italic; }
+.hljs-title, .hljs-function, .hljs-section { color: #2563c9; }
+.hljs-type, .hljs-class { color: #a15c00; }
+@media (prefers-color-scheme: dark) {
+  .hljs-keyword, .hljs-selector-tag, .hljs-built_in { color: #d7a6f7; }
+  .hljs-string, .hljs-attr, .hljs-template-tag { color: #a6d98a; }
+  .hljs-number, .hljs-literal { color: #f6c177; }
+  .hljs-title, .hljs-function, .hljs-section { color: #8ab4f8; }
+  .hljs-type, .hljs-class { color: #f0c674; }
+}
