@@ -1,4 +1,5 @@
 import { AGENT, expect, sendAndWait, shot, sidebar, test, useApp } from './fixtures'
+import { noisyPng } from './noisyPng'
 
 const { page } = useApp()
 
@@ -66,4 +67,46 @@ test('attachments: a text file is sent as context', async () => {
   await expect(log.getByRole('list', { name: 'Attachments' }).getByText('secret.txt')).toBeVisible()
   await expect(log.locator('.prose').last()).toContainText(/marshmallow/i)
   await shot(page(), '03b-attachment')
+})
+
+const MB = 1024 * 1024
+const chips = () => page().getByRole('list', { name: 'Attachments' })
+
+test('a huge image (over the old 5 MB limit) is shrunk to fit and still sent', async () => {
+  const huge = noisyPng(1800) // random noise: incompressible, so about 9.7 MB as a PNG
+  expect(huge.length, 'precondition: bigger than the old limit').toBeGreaterThan(5 * MB)
+
+  await page().locator('input[type=file]').setInputFiles({ name: 'huge.png', mimeType: 'image/png', buffer: huge })
+  await expect(page().getByRole('status').getByText(/huge\.png was shrunk to fit \(\d+\.\d MB to \d\.\d MB\)\./)).toBeVisible({ timeout: 60_000 })
+  await expect(page().getByRole('alert')).toHaveCount(0)
+
+  // The thumbnail's src is exactly what gets sent: it must be well under the 5 MB the model allows.
+  const chip = chips().getByRole('img', { name: /^huge\.(png|jpg)$/ })
+  await expect(chip).toBeVisible()
+  const sent = (await chip.getAttribute('src'))!
+  expect(sent.length).toBeLessThan(5 * MB)
+  expect(sent).toMatch(/^data:image\/(png|jpeg);base64,/)
+  await shot(page(), '17-image-shrunk')
+
+  // And the model really accepts it (a 9.7 MB image would have been refused).
+  await sendAndWait(page(), 'Reply with exactly one word: seen')
+  const log = page().getByRole('log', { name: 'Conversation' })
+  await expect(log.locator('.prose').last()).toContainText(/seen/i, AGENT)
+  await expect(page().getByRole('status').getByText(/was shrunk to fit/)).toHaveCount(0) // the note clears once sent
+})
+
+test('a small image is sent byte for byte, with no fuss', async () => {
+  const onePixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+  await page().locator('input[type=file]').setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: Buffer.from(onePixel, 'base64') })
+  const chip = chips().getByRole('img', { name: 'dot.png' })
+  await expect(chip).toBeVisible()
+  expect(await chip.getAttribute('src')).toBe(`data:image/png;base64,${onePixel}`)
+  await expect(page().getByRole('status').getByText(/shrunk|Preparing/)).toHaveCount(0)
+  await page().getByRole('button', { name: 'Remove dot.png' }).click()
+})
+
+test('an image over 30 MB is refused, in plain words', async () => {
+  await page().locator('input[type=file]').setInputFiles({ name: 'giant.png', mimeType: 'image/png', buffer: Buffer.alloc(31 * MB) })
+  await expect(page().getByRole('alert').getByText('giant.png is over 30 MB.')).toBeVisible()
+  await expect(chips().getByRole('img', { name: 'giant.png' })).toHaveCount(0)
 })

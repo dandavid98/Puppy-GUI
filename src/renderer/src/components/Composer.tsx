@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type ClipboardEvent, type DragEvent
 import type { AvailableCommand } from '@agentclientprotocol/sdk'
 import { ArrowUp, FolderOpen, Paperclip, Square } from 'lucide-react'
 import type { Attachment } from '@shared/api'
-import { readAttachment } from '../lib/attachments'
+import { needsShrinking, readAttachment } from '../lib/attachments'
 import { matchCommands } from '../lib/commands'
 import { folderName, prettyPath } from '../lib/format'
 import { previewOf } from '../state/thread'
@@ -35,6 +35,8 @@ export function Composer(props: Props) {
   const listId = useId()
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
+  /** Good news about a file (it was shrunk), or "working on it" while that happens. */
+  const [fileNote, setFileNote] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
   const [activeCommand, setActiveCommand] = useState(0)
   const [menuDismissed, setMenuDismissed] = useState(false)
@@ -62,10 +64,12 @@ export function Composer(props: Props) {
 
   const addFiles = async (files: File[]) => {
     setFileError(null)
+    setFileNote(files.some(needsShrinking) ? 'Preparing your image...' : null)
     const results = await Promise.allSettled(files.map(readAttachment))
-    const ok = results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))
+    const read = results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))
     const failed = results.flatMap((result) => (result.status === 'rejected' ? [String(result.reason?.message ?? result.reason)] : []))
-    setAttachments((current) => [...current, ...ok])
+    setAttachments((current) => [...current, ...read.map(({ attachment }) => attachment)])
+    setFileNote(read.flatMap(({ note }) => (note ? [note] : [])).join(' ') || null)
     if (failed.length) setFileError(failed.join(' '))
   }
 
@@ -75,6 +79,7 @@ export function Composer(props: Props) {
     onChange('')
     setAttachments([])
     setFileError(null)
+    setFileNote(null)
   }
 
   const pickCommand = (command: AvailableCommand) => {
@@ -162,6 +167,11 @@ export function Composer(props: Props) {
         {fileError && (
           <p role="alert" className="px-4 pb-1 text-xs text-danger">
             {fileError}
+          </p>
+        )}
+        {fileNote && (
+          <p role="status" className="px-4 pb-1 text-xs text-muted">
+            {fileNote}
           </p>
         )}
         <div className="flex min-w-0 items-center gap-1 px-2.5 pb-2.5">

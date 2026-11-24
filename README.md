@@ -53,6 +53,9 @@ If your network blocks npm or GitHub (a company Artifactory, say), keep that con
   message; `jsonLinesOnly` strips them or `initialize` never gets an answer.
 - npm 11 skips dependency install scripts, so `scripts/ensure-electron.cjs`
   downloads the Electron binary (it honours `ELECTRON_MIRROR`; see "Behind a mirror or proxy").
+- **Big images are shrunk before sending** (`src/renderer/src/lib/attachments.ts`). We accept up to 30 MB, but anything over
+  ~3.5 MB is re-encoded in the renderer (lossless PNG if that fits, else JPEG at falling quality/size, long edge <= 2048)
+  and the composer says so. Smaller images are sent byte for byte. An unshrunk 9.7 MB image got no reply from the model.
 - Code Puppy's model is a global setting, so the model picker is app-wide (and changes it for the terminal too).
 - `session/close` is "Method not found" in code-puppy (its SDK gates it behind the unstable protocol), so deleting a
   conversation also removes its files from `~/.code_puppy/autosaves/acp` itself (`src/main/acp/sessionStore.ts`).
