@@ -25,7 +25,7 @@ interface Props {
 /** What to tell the user after "Update Puppy". Nothing when they said no, or when Puppy is already closing. */
 function updateMessage(outcome: UpdateOutcome): string | null {
   switch (outcome.state) {
-    case 'current': return 'Puppy is up to date.'
+    case 'current': return 'Puppy is up to date with the latest code on GitHub.'
     case 'unavailable': return outcome.reason
     case 'started': return 'Closing to update. Puppy will reopen by itself in about a minute.'
     case 'declined': return null
