@@ -70,6 +70,7 @@ export function App() {
           onModel={(value) => void actions.setModel(value)}
           onRevealLog={actions.revealLog}
           onRestartAgent={actions.restartAgent}
+          onUpdateApp={actions.updateApp}
         />
       )
     }

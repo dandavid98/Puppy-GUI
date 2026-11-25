@@ -10,6 +10,7 @@ function subscribe<T>(channel: string, listener: (payload: T) => void): Unsubscr
 const api: PuppyApi = {
   getStatus: () => ipcRenderer.invoke(Invoke.getStatus),
   restartAgent: () => ipcRenderer.invoke(Invoke.restartAgent),
+  updateApp: () => ipcRenderer.invoke(Invoke.updateApp),
   getAppInfo: () => ipcRenderer.invoke(Invoke.getAppInfo),
   revealLog: () => ipcRenderer.invoke(Invoke.revealLog),
   getVpnStatus: () => ipcRenderer.invoke(Invoke.getVpnStatus),

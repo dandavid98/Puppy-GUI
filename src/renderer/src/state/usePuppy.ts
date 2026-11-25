@@ -145,6 +145,7 @@ export function usePuppy() {
       newConversation: (kind: WorkspaceKind) => dispatch({ type: 'mode', mode: kind }),
       cancel: (sessionId: string) => void api.cancel(sessionId),
       restartAgent: () => void api.restartAgent().catch(() => undefined),
+      updateApp: api.updateApp,
       dismissNotice: go({ type: 'notice', message: null }),
       openSettings: go({ type: 'view', view: 'settings' }),
       closeSettings: go({ type: 'view', view: 'conversation' }),

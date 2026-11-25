@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { Invoke, Push, type AppInfo, type Settings } from '@shared/api'
 import { isLocalUrl, previewTarget } from '@shared/preview'
 import type { AgentPool } from './acp/agentPool'
@@ -8,6 +8,7 @@ import type { Organizer } from './organizer'
 import { openInBrowser, writePreviewHtml } from './preview'
 import type { QuotaService } from './quota'
 import type { SettingsStore } from './settings'
+import { updatePuppy } from './updater'
 import type { VpnWatch } from './vpn'
 import type { Workspace } from './workspace'
 
@@ -41,6 +42,21 @@ export function registerIpc({ agents, workspace, organizer, settings, quota, vpn
 
   ipcMain.handle(Invoke.getStatus, () => agents.status)
   ipcMain.handle(Invoke.restartAgent, () => agents.restart())
+  ipcMain.handle(Invoke.updateApp, () =>
+    updatePuppy({
+      appPath: app.getAppPath(),
+      packaged: app.isPackaged,
+      dataPath: info.dataPath,
+      pid: process.pid,
+      confirm: async (detail) => {
+        const options = { type: 'question' as const, message: 'Update Puppy?', detail, buttons: ['Update and restart', 'Not now'], defaultId: 0, cancelId: 1 }
+        const parent = window()
+        const { response } = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options)
+        return response === 0
+      },
+      quit: () => app.quit(),
+    }),
+  )
   ipcMain.handle(Invoke.getAppInfo, () => info)
   ipcMain.handle(Invoke.revealLog, () => shell.showItemInFolder(info.logPath))
   ipcMain.handle(Invoke.getVpnStatus, () => vpn.status)

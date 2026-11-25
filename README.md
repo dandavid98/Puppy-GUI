@@ -16,6 +16,17 @@ the app always uses the current version.
 
 Only one Puppy runs per data folder; opening a second one just focuses the first.
 
+### Updating
+
+**Settings > About > Update Puppy** brings the installed app up to date from its own source. It runs `git fetch`, and if
+there is something new it asks, then closes Puppy and a helper (`scripts/update-app.sh`) does `git pull --ff-only`,
+`npm install` (only if `package-lock.json` changed), `npm run package:mac`, and reopens the app. Progress and errors go
+to `update.log` in the data folder. It needs the source folder the app was built from (recorded in the app by
+`make-app.sh`), plus git, node and network access to the remote. It stops, and leaves your installed app alone, if the pull
+cannot fast-forward (you have commits of your own) or the build fails. It is for the installed `Puppy.app` only; from
+source, `git pull` and restart. ("Restart Code Puppy" is separate: it only restarts the `code-puppy` processes, and
+Code Puppy updates itself when it starts.)
+
 ## Develop
 
 ```bash

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode, useId } from 'react'
-import { FileText, Monitor, Moon, RotateCw, Sun, type LucideIcon } from 'lucide-react'
-import type { AppInfo, QuotaSnapshot, Settings, ThemePreference } from '@shared/api'
+import { FileText, Monitor, Moon, RotateCw, Sun, Download, type LucideIcon } from 'lucide-react'
+import type { AppInfo, QuotaSnapshot, Settings, ThemePreference, UpdateOutcome } from '@shared/api'
 import { prettyPath } from '../lib/format'
 import type { AppState } from '../state/store'
 import { ModelPicker } from './ModelPicker'
@@ -19,8 +19,18 @@ interface Props {
   onModel: (value: string) => void
   onRevealLog: () => void
   onRestartAgent: () => void
+  onUpdateApp: () => Promise<UpdateOutcome>
 }
 
+/** What to tell the user after "Update Puppy". Nothing when they said no, or when Puppy is already closing. */
+function updateMessage(outcome: UpdateOutcome): string | null {
+  switch (outcome.state) {
+    case 'current': return 'Puppy is up to date.'
+    case 'unavailable': return outcome.reason
+    case 'started': return 'Closing to update. Puppy will reopen by itself in about a minute.'
+    case 'declined': return null
+  }
+}
 const THEME_CARDS: { value: ThemePreference; label: string; icon: LucideIcon; preview: string }[] = [
   { value: 'system', label: 'System', icon: Monitor, preview: 'bg-[linear-gradient(135deg,#faf9f7_50%,#1e1d1b_50%)]' },
   { value: 'light', label: 'Light', icon: Sun, preview: 'bg-[#faf9f7]' },
@@ -64,9 +74,20 @@ function ThemePicker({ value, onChange }: { value: ThemePreference; onChange: (t
   )
 }
 
-export function SettingsView({ settings, model, quota, onRefreshQuota, modelError, onRetryModels, loadAppInfo, onUpdate, onModel, onRevealLog, onRestartAgent }: Props) {
+export function SettingsView({ settings, model, quota, onRefreshQuota, modelError, onRetryModels, loadAppInfo, onUpdate, onModel, onRevealLog, onRestartAgent, onUpdateApp }: Props) {
   const [name, setName] = useState(settings.displayName)
   const [info, setInfo] = useState<AppInfo | null>(null)
+  const [updating, setUpdating] = useState(false)
+  const [updateNote, setUpdateNote] = useState<string | null>(null)
+
+  const update = () => {
+    setUpdating(true)
+    setUpdateNote(null)
+    onUpdateApp()
+      .then((outcome) => setUpdateNote(updateMessage(outcome)))
+      .catch(() => setUpdateNote('The update could not start. Try again.'))
+      .finally(() => setUpdating(false))
+  }
 
   useEffect(() => {
     void loadAppInfo().then(setInfo)
@@ -173,7 +194,12 @@ export function SettingsView({ settings, model, quota, onRefreshQuota, modelErro
               <RotateCw size={14} aria-hidden />
               Restart Code Puppy
             </button>
+            <button type="button" onClick={update} disabled={updating} className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm hover:bg-raised disabled:opacity-60">
+              <Download size={14} aria-hidden />
+              {updating ? 'Checking...' : 'Update Puppy'}
+            </button>
           </div>
+          <p role="status" className="mt-3 text-sm text-muted empty:hidden">{updateNote}</p>
         </Section>
       </div>
     </div>

@@ -17,6 +17,10 @@ set_plist() { /usr/libexec/PlistBuddy -c "Set :$1 $2" "$PLIST" 2>/dev/null || /u
 [ -d "$SHELL_APP" ] || { echo "Electron is missing: run npm install first." >&2; exit 1; }
 [ -f build/icon.icns ] || { echo "build/icon.icns is missing (see scripts/make-icns.sh)." >&2; exit 1; }
 
+# Build first: if it fails, the app that is already installed stays put.
+echo "Building the app code..."
+npx electron-vite build >/tmp/puppy-desktop-build.log 2>&1 || { echo "Build failed; see /tmp/puppy-desktop-build.log" >&2; exit 1; }
+
 # Replace an existing install, but only if it really is ours.
 if [ -e "$DEST" ]; then
   existing_id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PLIST" 2>/dev/null || true)
@@ -27,9 +31,6 @@ if [ -e "$DEST" ]; then
   rm -r "$DEST"
 fi
 
-echo "Building the app code..."
-npx electron-vite build >/tmp/puppy-desktop-build.log 2>&1
-
 echo "Assembling $DEST ..."
 mkdir -p "$HOME/Applications"
 ditto "$SHELL_APP" "$DEST"          # ditto keeps symlinks and permissions intact
@@ -37,9 +38,9 @@ ditto "$SHELL_APP" "$DEST"          # ditto keeps symlinks and permissions intac
 APP_DIR="$DEST/Contents/Resources/app"
 mkdir -p "$APP_DIR"
 ditto out "$APP_DIR/out"
-cat > "$APP_DIR/package.json" <<JSON
-{ "name": "puppy-desktop", "version": "$(node -p "require('./package.json').version")", "main": "./out/main/index.js" }
-JSON
+# puppySource/puppyCommit let the installed app update itself: where its code lives, and which commit this build is.
+node -p "JSON.stringify({ name: 'puppy-desktop', version: require('./package.json').version, main: './out/main/index.js', puppySource: process.cwd(), puppyCommit: process.argv[1] }, null, 2)" \
+  "$(git rev-parse HEAD 2>/dev/null || echo unknown)" > "$APP_DIR/package.json"
 
 cp build/icon.icns "$DEST/Contents/Resources/electron.icns"   # the file Electron's plist points at
 # Electron treats an executable literally named "Electron" as a dev copy (app.isPackaged

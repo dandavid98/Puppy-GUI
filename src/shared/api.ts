@@ -61,6 +61,13 @@ export interface TurnResult {
   contextTokens: number | null
 }
 
+/** What "Update Puppy" did. */
+export type UpdateOutcome =
+  | { state: 'started' } // Puppy is closing; a helper updates it and reopens it
+  | { state: 'current' }
+  | { state: 'declined' }
+  | { state: 'unavailable'; reason: string }
+
 export interface AppInfo {
   version: string
   dataPath: string
@@ -122,6 +129,8 @@ export type Unsubscribe = () => void
 export interface PuppyApi {
   getStatus(): Promise<AgentStatus>
   restartAgent(): Promise<void>
+  /** Pull, reinstall and repackage Puppy from its own source, then reopen it (asks first). */
+  updateApp(): Promise<UpdateOutcome>
   getAppInfo(): Promise<AppInfo>
   revealLog(): Promise<void>
   getVpnStatus(): Promise<VpnStatus>
@@ -176,6 +185,7 @@ export interface PuppyApi {
 export const Invoke = {
   getStatus: 'agent:get-status',
   restartAgent: 'agent:restart',
+  updateApp: 'app:update',
   getAppInfo: 'app:info',
   revealLog: 'app:reveal-log',
   getVpnStatus: 'vpn:get',
