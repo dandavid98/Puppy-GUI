@@ -3,13 +3,13 @@ import { mkdirSync, statSync } from 'node:fs'
 import type { ContentBlock, NewSessionResponse, PromptResponse, SessionConfigOption, SessionInfo, SessionNotification } from '@agentclientprotocol/sdk'
 import type { Attachment, OpenedSession, SessionSummary, TurnResult, WorkspaceKind } from '@shared/api'
 import { DEFAULT_CONTEXT_LENGTH } from '@shared/limits'
+import { cleanTitle, titleFrom, titlePrompt, titleSource } from '@shared/titles'
 import { estimateContext, readTurnUsage } from './context'
 import type { AgentPool } from './acp/agentPool'
 import { deletePersistedSession } from './acp/sessionStore'
 import { promptBlocks } from './promptBlocks'
 import type { SessionIndex, SessionMeta } from './sessionIndex'
 import type { SettingsStore } from './settings'
-import { cleanTitle, titleFrom, titlePrompt } from './titles'
 
 const MODEL_OPTION = 'model'
 
@@ -135,11 +135,11 @@ export class Workspace extends EventEmitter<{ changed: []; turn: [] }> {
   async prompt(sessionId: string, text: string, attachments: Attachment[] = []): Promise<TurnResult> {
     const meta = this.index.get(sessionId)
     const firstTurn = meta !== undefined && meta.title === null
-    const titleSource = text.trim() || attachments.map((file) => file.name).join(', ')
-    this.index.update(sessionId, { updatedAt: new Date().toISOString(), title: meta?.title ?? titleFrom(titleSource) })
+    const source = titleSource(text, attachments)
+    this.index.update(sessionId, { updatedAt: new Date().toISOString(), title: meta?.title ?? titleFrom(source) })
 
     const { response, toolCalls } = await this.runPrompt(sessionId, promptBlocks(text, attachments))
-    if (firstTurn && response.stopReason === 'end_turn') void this.smartTitle(sessionId, titleSource)
+    if (firstTurn && response.stopReason === 'end_turn') void this.smartTitle(sessionId, source)
 
     const previous = meta?.contextTokens ?? null
     const usage = readTurnUsage(response)

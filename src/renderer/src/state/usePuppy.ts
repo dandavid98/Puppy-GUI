@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import type { Attachment, ChatFolder, FolderPatch, SessionSummary, Settings, WorkspaceKind } from '@shared/api'
 import { isLocalUrl, previewTarget, webTarget, type PreviewTarget } from '@shared/preview'
+import { loadLists } from './loadLists'
 import { initialState, reducer, type Action } from './store'
 
 const api = window.puppy
@@ -34,14 +35,16 @@ export function usePuppy() {
     }
   }, [])
 
+  const ready = useRef(false)
+  ready.current = state.status.state === 'ready'
+
   const refreshSessions = useCallback(async () => {
-    try {
-      const [sessions, folders] = await Promise.all([api.listSessions(), api.listFolders()])
-      dispatch({ type: 'sessions', sessions })
-      dispatch({ type: 'folders', folders })
-    } catch {
-      // The sidebar keeps its last good list; status events report real outages.
-    }
+    const lists = await loadLists(api, readableError)
+    // A failed list keeps what the sidebar already shows.
+    if (lists.sessions) dispatch({ type: 'sessions', sessions: lists.sessions })
+    if (lists.folders) dispatch({ type: 'folders', folders: lists.folders })
+    // While Code Puppy is down the status already says so; failing while it claims to be ready is news.
+    if (lists.problems.length && ready.current) dispatch({ type: 'notice', message: lists.problems.join(' ') })
   }, [])
 
   useEffect(() => {
@@ -98,7 +101,7 @@ export function usePuppy() {
           dispatch({ type: 'opened', session })
           sessionId = session.sessionId
         }
-        dispatch({ type: 'sent', sessionId, text, attachments })
+        dispatch({ type: 'sent', sessionId, text, attachments, at: new Date().toISOString() })
         const turn = await api.prompt(sessionId, text, attachments)
         dispatch({ type: 'finished', sessionId, contextTokens: turn.contextTokens })
       } catch (error) {

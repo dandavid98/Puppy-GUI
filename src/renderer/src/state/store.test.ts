@@ -1,11 +1,12 @@
 import type { SessionNotification } from '@agentclientprotocol/sdk'
-import type { OpenedSession, Settings } from '@shared/api'
+import type { Attachment, OpenedSession, SessionSummary, Settings } from '@shared/api'
 import { describe, expect, it } from 'vitest'
 import { initialState, reducer, type Action, type AppState } from './store'
 
 const settings = (autoPreview: boolean): Settings => ({ theme: 'system', displayName: 'Dan', smartTitles: true, autoPreview })
 const session: OpenedSession = { sessionId: 's1', cwd: '/work/app', kind: 'code', configOptions: [] }
 
+const AT = '2026-11-25T10:00:00.000Z'
 const run = (state: AppState, ...actions: Action[]) => actions.reduce(reducer, state)
 const update = (u: SessionNotification['update']): Action => ({ type: 'update', notification: { sessionId: 's1', update: u } })
 
@@ -35,7 +36,7 @@ describe('auto preview of files', () => {
 
   it('reloads the panel when the same page is written again', () => {
     const first = run(live(), startWrite, wroteHtml())
-    const again = run(first, { type: 'sent', sessionId: 's1', text: 'tweak it', attachments: [] }, update({ ...{ sessionUpdate: 'tool_call' as const }, toolCallId: 'c2', title: 'Edit index.html', kind: 'edit', status: 'completed', content: [{ type: 'diff', path: 'index.html', oldText: 'a', newText: 'b' }] }))
+    const again = run(first, { type: 'sent', sessionId: 's1', text: 'tweak it', attachments: [], at: AT }, update({ ...{ sessionUpdate: 'tool_call' as const }, toolCallId: 'c2', title: 'Edit index.html', kind: 'edit', status: 'completed', content: [{ type: 'diff', path: 'index.html', oldText: 'a', newText: 'b' }] }))
     expect(again.preview?.location).toBe('/work/app/index.html')
     expect(again.previewRevision).toBeGreaterThan(first.previewRevision)
   })
@@ -69,14 +70,14 @@ describe('auto preview of local servers', () => {
   ]
 
   it('queues a server the reply mentions once the turn finishes', () => {
-    const state = run(live(), { type: 'sent', sessionId: 's1', text: 'serve it', attachments: [] }, ...serverReply('It is up at http://localhost:8080/.'))
+    const state = run(live(), { type: 'sent', sessionId: 's1', text: 'serve it', attachments: [], at: AT }, ...serverReply('It is up at http://localhost:8080/.'))
     expect(state.pendingUrl).toBe('http://localhost:8080/')
   })
 
   it('offers each server only once per conversation', () => {
     const first = run(live(), ...serverReply('Running at http://localhost:8080'))
     const handled = run(first, { type: 'pendingUrlHandled' })
-    const second = run(handled, { type: 'sent', sessionId: 's1', text: 'again', attachments: [] }, ...serverReply('Still at http://localhost:8080'))
+    const second = run(handled, { type: 'sent', sessionId: 's1', text: 'again', attachments: [], at: AT }, ...serverReply('Still at http://localhost:8080'))
     expect(second.pendingUrl).toBeNull()
   })
 
@@ -118,5 +119,46 @@ describe('folders', () => {
     const after = run(loaded, { type: 'removed', sessionId: 's1' })
     expect(after.sessions).toEqual([])
     expect(after.folders).toEqual(folders)
+  })
+})
+
+describe('the sidebar row of a conversation', () => {
+  const summary = (id: string, title: string): SessionSummary => ({
+    sessionId: id, cwd: '/work/app', kind: 'code', title, updatedAt: AT, contextTokens: null, pinned: false, folderId: null,
+  })
+  const send = (text: string, attachments: Attachment[] = []): Action => ({ type: 'sent', sessionId: 's1', text, attachments, at: AT })
+  const fresh = () => run(initialState, { type: 'opened', session })
+
+  it('appears the moment the first message is sent, titled from it', () => {
+    const state = run(fresh(), send('Write me a poem about puppies\nwith a second line'))
+    expect(state.sessions).toEqual([{ ...summary('s1', 'Write me a poem about puppies') }])
+  })
+
+  it('is titled from the attachments when there is no text', () => {
+    const image: Attachment = { kind: 'text', name: 'notes.txt', mimeType: 'text/plain', text: 'x' }
+    expect(run(fresh(), send('  ', [image])).sessions[0].title).toBe('notes.txt')
+  })
+
+  it('is added once, and never for a conversation the list already has', () => {
+    const twice = run(fresh(), send('first'), send('second'))
+    expect(twice.sessions).toHaveLength(1)
+    const listed = run(fresh(), { type: 'sessions', sessions: [summary('s1', 'Saved title')] }, send('hello'))
+    expect(listed.sessions).toEqual([summary('s1', 'Saved title')])
+  })
+
+  it('is replaced by the real list entry, not duplicated', () => {
+    const state = run(fresh(), send('first'), { type: 'sessions', sessions: [summary('s1', 'Smart title')] })
+    expect(state.sessions).toEqual([summary('s1', 'Smart title')])
+  })
+
+  it('survives a list that leaves out an open conversation (not saved yet, or the list failed to include it)', () => {
+    const state = run(fresh(), send('first'), { type: 'sessions', sessions: [summary('other', 'Other')] })
+    expect(state.sessions.map((row) => row.sessionId)).toEqual(['s1', 'other'])
+  })
+
+  it('does not keep rows for conversations that are not open, and goes when the conversation is deleted', () => {
+    const state = run(initialState, { type: 'sessions', sessions: [summary('old', 'Old')] }, { type: 'sessions', sessions: [] })
+    expect(state.sessions).toEqual([])
+    expect(run(fresh(), send('first'), { type: 'removed', sessionId: 's1' }).sessions).toEqual([])
   })
 })

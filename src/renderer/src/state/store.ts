@@ -2,6 +2,7 @@ import type { AvailableCommand, SessionConfigOption, SessionNotification } from 
 import type { PreviewTarget } from '@shared/preview'
 import type { AgentStatus, Attachment, ChatFolder, OpenedSession, PermissionPrompt, QuotaSnapshot, SessionSummary, Settings, WorkspaceKind } from '@shared/api'
 import { previewForCompletedCall, previewForReply, type AutoPreview } from './autoPreview'
+import { titleFrom, titleSource } from '@shared/titles'
 import { addError, addUserMessage, applyUpdate, type ThreadItem } from './thread'
 
 export interface Thread extends OpenedSession {
@@ -56,7 +57,7 @@ export type Action =
   | { type: 'mode'; mode: WorkspaceKind }
   | { type: 'folder'; folder: string }
   | { type: 'update'; notification: SessionNotification }
-  | { type: 'sent'; sessionId: string; text: string; attachments: Attachment[] }
+  | { type: 'sent'; sessionId: string; text: string; attachments: Attachment[]; /** When it was sent (ISO), for the sidebar row. */ at: string }
   | { type: 'finished'; sessionId: string; error?: string; contextTokens?: number | null }
   | { type: 'config'; configOptions: SessionConfigOption[] }
   | { type: 'settings'; settings: Settings }
@@ -141,12 +142,37 @@ function autoPreviewAfterUpdate(before: AppState, after: AppState, notification:
   return applyAutoPreview(after, sessionId, previewForCompletedCall(call, thread.cwd))
 }
 
+/**
+ * A new conversation's first message gives it a sidebar row right away, titled like the
+ * main process will title it. Waiting for the reply would leave it missing for as long as
+ * that takes, and forever if the reply never comes. The real list replaces this row later.
+ */
+function withRow(state: AppState, action: Extract<Action, { type: 'sent' }>): AppState {
+  const thread = state.threads[action.sessionId]
+  if (!thread || state.sessions.some((session) => session.sessionId === action.sessionId)) return state
+  const row: SessionSummary = {
+    sessionId: thread.sessionId,
+    cwd: thread.cwd,
+    kind: thread.kind,
+    title: titleFrom(titleSource(action.text, action.attachments)) || null,
+    updatedAt: action.at,
+    contextTokens: null,
+    pinned: false,
+    folderId: null,
+  }
+  return { ...state, sessions: [row, ...state.sessions] }
+}
+
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'status':
       return { ...state, status: action.status }
-    case 'sessions':
-      return { ...state, sessions: action.sessions }
+    case 'sessions': {
+      // A conversation open on screen never loses its row, even when the list does not mention it (yet).
+      const listed = new Set(action.sessions.map((session) => session.sessionId))
+      const stillOpen = state.sessions.filter((session) => !listed.has(session.sessionId) && state.threads[session.sessionId])
+      return { ...state, sessions: [...stillOpen, ...action.sessions] }
+    }
     case 'folders':
       return { ...state, folders: action.folders }
     case 'opened': {
@@ -196,7 +222,7 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'replayed':
       return patchThread(state, action.sessionId, () => ({ replaying: false }))
     case 'sent':
-      return patchThread(state, action.sessionId, (thread) => ({
+      return patchThread(withRow(state, action), action.sessionId, (thread) => ({
         items: addUserMessage(thread.items, action.text, action.attachments),
         running: true,
       }))

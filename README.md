@@ -53,6 +53,10 @@ If your network blocks npm or GitHub (a company Artifactory, say), keep that con
   message; `jsonLinesOnly` strips them or `initialize` never gets an answer.
 - npm 11 skips dependency install scripts, so `scripts/ensure-electron.cjs`
   downloads the Electron binary (it honours `ELECTRON_MIRROR`; see "Behind a mirror or proxy").
+- **A conversation open on screen always has a sidebar row** (`state/store.ts`: `withRow` and the `sessions` case). The row appears
+  when the first message is sent, not when the reply ends, and the real list never removes an open conversation. The conversations
+  and the folders load independently (`state/loadLists.ts`): if one cannot be read the other still shows, and a message says which
+  one failed (only while Code Puppy claims to be ready, so an outage is not reported twice).
 - **Pins and folders** (`src/main/organizer.ts`, `folders.ts`, `src/renderer/src/lib/organize.ts`). Both are our own bookkeeping, never
   Code Puppy's: `pinned`/`folderId` live in `sessions.json`, the folders themselves in `folders.json`. A folder belongs to one tab
   (chat or code) and the main process refuses to file a chat in a code folder. Deleting a folder keeps its conversations. The

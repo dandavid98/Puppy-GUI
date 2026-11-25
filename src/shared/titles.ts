@@ -7,6 +7,11 @@ function clip(title: string): string {
   return title.length > MAX_TITLE ? `${title.slice(0, MAX_TITLE - 3).trimEnd()}...` : title
 }
 
+/** What a first message is about, for naming: its text, or what was attached when there is none. */
+export function titleSource(text: string, attachments: { name: string }[] = []): string {
+  return text.trim() || attachments.map((file) => file.name).join(', ')
+}
+
 /** Instant fallback: the first line of the first message. */
 export function titleFrom(text: string): string {
   return clip(text.trim().split('\n')[0].trim())

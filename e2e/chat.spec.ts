@@ -110,3 +110,19 @@ test('an image over 30 MB is refused, in plain words', async () => {
   await expect(page().getByRole('alert').getByText('giant.png is over 30 MB.')).toBeVisible()
   await expect(chips().getByRole('img', { name: 'giant.png' })).toHaveCount(0)
 })
+
+test('a new chat gets its sidebar row the moment you send, not when the reply ends', async () => {
+  await page().getByRole('button', { name: 'New chat' }).click()
+  const rows = sidebar(page()).locator('li > button')
+  const before = await rows.count()
+
+  await page().getByLabel('Message Code Puppy').fill('Write a 300 word story about a puppy who learns to code.')
+  await page().keyboard.press('Enter')
+
+  await expect(rows).toHaveCount(before + 1, { timeout: 5_000 }) // a long reply is still being written
+  await expect(page().getByRole('button', { name: 'Stop' })).toBeVisible()
+  await expect(rows.first()).toContainText('Write a 300 word story') // titled from the message, like the real title will be
+
+  await expect(page().getByRole('button', { name: 'Send message' })).toBeVisible(AGENT)
+  await expect(rows).toHaveCount(before + 1) // the real list took over, with no duplicate
+})
