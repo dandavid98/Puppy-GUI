@@ -39,8 +39,13 @@ APP_DIR="$DEST/Contents/Resources/app"
 mkdir -p "$APP_DIR"
 ditto out "$APP_DIR/out"
 # puppySource/puppyCommit let the installed app update itself: where its code lives, and which commit this build is.
-node -p "JSON.stringify({ name: 'puppy-desktop', version: require('./package.json').version, main: './out/main/index.js', puppySource: process.cwd(), puppyCommit: process.argv[1] }, null, 2)" \
-  "$(git rev-parse HEAD 2>/dev/null || echo unknown)" > "$APP_DIR/package.json"
+# The version shown in Settings is package.json's plus the commit ("0.1.0+ffe78df"), so it changes on every
+# update without anyone having to remember to bump a number. "-dirty" means uncommitted edits are in the build.
+COMMIT=$(git rev-parse HEAD 2>/dev/null || echo unknown)
+SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+if [ "$COMMIT" != unknown ] && ! git diff --quiet HEAD; then SHORT="$SHORT-dirty"; fi
+node -p "JSON.stringify({ name: 'puppy-desktop', version: require('./package.json').version + '+' + process.argv[2], main: './out/main/index.js', puppySource: process.cwd(), puppyCommit: process.argv[1] }, null, 2)" \
+  "$COMMIT" "$SHORT" > "$APP_DIR/package.json"
 
 cp build/icon.icns "$DEST/Contents/Resources/electron.icns"   # the file Electron's plist points at
 # Electron treats an executable literally named "Electron" as a dev copy (app.isPackaged
