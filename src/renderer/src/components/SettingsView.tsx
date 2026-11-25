@@ -128,6 +128,15 @@ export function SettingsView({ settings, model, quota, onRefreshQuota, modelErro
           <QuotaSettings quota={quota} onRefresh={onRefreshQuota} />
         </Section>
 
+        <Section title="Thinking process">
+          <Switch
+            label="Show Code Puppy's work"
+            description="Follow along like the terminal does: Code Puppy's thinking, its reasoning and next steps, and every file it reads, command it runs and result it gets, all opened up as it happens. Off keeps them tucked away until you click one."
+            checked={settings.thinkingMode}
+            onChange={(thinkingMode) => onUpdate({ thinkingMode })}
+          />
+        </Section>
+
         <Section title="Previews">
           <Switch
             label="Open previews automatically"

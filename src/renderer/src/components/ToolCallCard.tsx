@@ -4,6 +4,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { previewablePaths } from '../lib/previewable'
+import { readReasoning, REASONING_TOOL, type Reasoning } from '../lib/reasoning'
 import { compactDiff } from '../state/diff'
 import { usePreviewActions } from './previewContext'
 import type { ToolCallView } from '../state/thread'
@@ -55,6 +56,22 @@ function Block({ label, text }: { label: string; text: string }) {
   )
 }
 
+function ReasoningNote({ reasoning, nextSteps }: Reasoning) {
+  return (
+    <div className="selectable space-y-2 text-sm leading-6">
+      {reasoning && <p className="whitespace-pre-wrap">{reasoning}</p>}
+      {nextSteps.length > 0 && (
+        <div>
+          <div className="mb-1 text-xs font-medium tracking-wide text-muted uppercase">Next steps</div>
+          <ul className="list-disc space-y-0.5 pl-5">
+            {nextSteps.map((step, index) => <li key={index}>{step}</li>)}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DiffBlock({ content }: { content: Extract<ToolCallContent, { type: 'diff' }> }) {
   const styles = { added: 'bg-added', removed: 'bg-removed', context: '' } as const
   const signs = { added: '+', removed: '-', context: ' ' } as const
@@ -73,29 +90,31 @@ function DiffBlock({ content }: { content: Extract<ToolCallContent, { type: 'dif
   )
 }
 
-export function ToolCallCard({ call }: { call: ToolCallView }) {
+export function ToolCallCard({ call, open = false }: { call: ToolCallView; /** Start expanded, so the work can be followed without clicking. */ open?: boolean }) {
   const { cwd, showFile } = usePreviewActions()
   const previews = call.status === 'completed' && cwd ? previewablePaths(call, cwd) : []
   const Icon = ICONS[call.kind ?? 'other'] ?? Wrench
-  const input = inputText(call.rawInput)
-  const output = asText(call.rawOutput)
+  const reasoning = call.title === REASONING_TOOL ? readReasoning(call.rawInput) : null
+  const input = reasoning ? null : inputText(call.rawInput)
+  const output = reasoning ? null : asText(call.rawOutput)
   const diffs = call.content.filter((c): c is Extract<ToolCallContent, { type: 'diff' }> => c.type === 'diff')
   const texts = call.content.flatMap((c) => (c.type === 'content' && c.content.type === 'text' ? [c.content.text] : []))
-  const hasDetails = Boolean(input || output || diffs.length || texts.length)
+  const hasDetails = Boolean(reasoning || input || output || diffs.length || texts.length)
 
   return (
     <div className="my-1">
-    <details className="group rounded-xl border border-line bg-surface/60 open:bg-surface">
+    <details open={open} className="group rounded-xl border border-line bg-surface/60 open:bg-surface">
       <summary
         className={`flex list-none items-center gap-2 px-3 py-2 text-sm [&::-webkit-details-marker]:hidden ${hasDetails ? 'cursor-pointer' : 'pointer-events-none'}`}
       >
         <Icon size={15} aria-hidden className="shrink-0 text-muted" />
-        <span className="min-w-0 flex-1 truncate">{call.title}</span>
+        <span className="min-w-0 flex-1 truncate">{reasoning ? 'Reasoning' : call.title}</span>
         <StatusIcon status={call.status} />
         {hasDetails && <ChevronRight size={14} aria-hidden className="text-muted transition-transform group-open:rotate-90" />}
       </summary>
       {hasDetails && (
         <div className="space-y-3 border-t border-line px-3 py-3">
+          {reasoning && <ReasoningNote {...reasoning} />}
           {input && <Block label="Input" text={input} />}
           {diffs.map((diff) => <DiffBlock key={diff.path} content={diff} />)}
           {texts.map((text, index) => <Block key={index} label="Result" text={text} />)}

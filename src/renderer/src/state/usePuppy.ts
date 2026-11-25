@@ -54,10 +54,12 @@ export function usePuppy() {
       api.onPermissionRequest((prompt) => dispatch({ type: 'permission', prompt })),
       api.onSessionsChanged(() => void refreshSessions()),
       api.onQuota((quota) => dispatch({ type: 'quota', quota })),
+      api.onVpnStatus((status) => dispatch({ type: 'vpn', status })),
     ]
     void api.getStatus().then((status) => dispatch({ type: 'status', status }))
     void api.getSettings().then((settings) => dispatch({ type: 'settings', settings }))
     void api.getQuota().then((quota) => dispatch({ type: 'quota', quota }))
+    void api.getVpnStatus().then((status) => dispatch({ type: 'vpn', status }))
     void api.getModelContexts().then((contexts) => dispatch({ type: 'modelContexts', contexts }))
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe())
   }, [refreshSessions])
@@ -151,6 +153,7 @@ export function usePuppy() {
         void api.prepareFolder(path)
       },
       refreshQuota: () => api.refreshQuota().then((quota) => dispatch({ type: 'quota', quota })),
+      checkVpn: () => api.checkVpn().then((status) => dispatch({ type: 'vpn', status })),
       chooseFolder: () =>
         guard(async () => {
           const chosen = await api.chooseFolder()

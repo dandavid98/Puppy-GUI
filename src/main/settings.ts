@@ -27,6 +27,7 @@ export function mergeSettings(current: Settings, patch: Partial<Record<keyof Set
   if (typeof patch.displayName === 'string') next.displayName = patch.displayName.trim().slice(0, MAX_NAME)
   if (typeof patch.smartTitles === 'boolean') next.smartTitles = patch.smartTitles
   if (typeof patch.autoPreview === 'boolean') next.autoPreview = patch.autoPreview
+  if (typeof patch.thinkingMode === 'boolean') next.thinkingMode = patch.thinkingMode
   return next
 }
 
@@ -39,6 +40,7 @@ export class SettingsStore {
       displayName: accountFirstName(),
       smartTitles: true,
       autoPreview: true,
+      thinkingMode: false, // opt-in: it is a lot to look at
     }
     this.current = mergeSettings(defaults, readJson(path, {}))
   }

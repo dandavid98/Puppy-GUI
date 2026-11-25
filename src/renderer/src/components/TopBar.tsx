@@ -1,5 +1,5 @@
-import { FolderOpen, LoaderCircle, PanelLeftOpen, Plus, RotateCw, X } from 'lucide-react'
-import type { AgentStatus } from '@shared/api'
+import { FolderOpen, LoaderCircle, PanelLeftOpen, Plus, RotateCw, WifiOff, X } from 'lucide-react'
+import type { AgentStatus, VpnStatus } from '@shared/api'
 import { prettyPath } from '../lib/format'
 
 interface TopBarProps {
@@ -37,14 +37,28 @@ export function TopBar({ sidebarOpen, onShowSidebar, onNew, title, folder }: Top
 interface BannerProps {
   status: AgentStatus
   notice: string | null
+  vpn: VpnStatus
   onRetry: () => void
+  onCheckVpn: () => void
   onDismiss: () => void
 }
 
 /** Agent start-up, outages, and errors that have no thread to live in. */
-export function Banners({ status, notice, onRetry, onDismiss }: BannerProps) {
+export function Banners({ status, notice, vpn, onRetry, onCheckVpn, onDismiss }: BannerProps) {
   return (
     <div aria-live="polite" className="mx-auto w-full max-w-3xl space-y-2 px-6 empty:hidden">
+      {vpn === 'disconnected' && (
+        <div role="alert" className="flex items-center gap-3 rounded-xl bg-accent-soft px-4 py-3 text-sm">
+          <WifiOff size={16} aria-hidden className="shrink-0 text-accent" />
+          <span className="min-w-0 flex-1">
+            <strong className="font-semibold">You're not connected to the VPN.</strong> Code Puppy can't reach its servers, so messages will hang. Connect to the Walmart VPN (or Eagle WiFi); this goes away on its own.
+          </span>
+          <button type="button" onClick={onCheckVpn} className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1 font-medium hover:bg-raised">
+            <RotateCw size={14} aria-hidden />
+            Check again
+          </button>
+        </div>
+      )}
       {status.state === 'starting' && (
         <div className="flex items-center justify-center gap-2 py-1 text-sm text-muted">
           <LoaderCircle size={14} aria-hidden className="animate-spin" />

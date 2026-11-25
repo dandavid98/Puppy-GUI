@@ -28,9 +28,9 @@ function AssistantMessage({ text }: { text: string }) {
   )
 }
 
-function Thought({ text }: { text: string }) {
+function Thought({ text, open }: { text: string; open: boolean }) {
   return (
-    <details className="group text-sm text-muted">
+    <details open={open} className="group text-sm text-muted">
       <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md py-1 hover:text-ink [&::-webkit-details-marker]:hidden">
         <Brain size={14} aria-hidden />
         Thought process
@@ -60,17 +60,17 @@ export function Thinking() {
   )
 }
 
-export function Message({ item }: { item: ThreadItem }) {
+export function Message({ item, showWork = false }: { item: ThreadItem; /** Thinking mode: thoughts and tool calls start open. */ showWork?: boolean }) {
   switch (item.type) {
     case 'user':
       return <UserMessage text={item.text} attachments={item.attachments} />
     case 'assistant':
       return <AssistantMessage text={item.text} />
     case 'thought':
-      return <Thought text={item.text} />
+      return <Thought text={item.text} open={showWork} />
     case 'error':
       return <ErrorMessage text={item.text} />
     case 'tool':
-      return <ToolCallCard call={item.call} />
+      return <ToolCallCard call={item.call} open={showWork} />
   }
 }

@@ -48,6 +48,19 @@ test('settings: previews switch', async () => {
   await page().getByRole('button', { name: 'Chat', exact: true }).click()
 })
 
+test('settings: thinking mode is off until switched on, and sticks', async () => {
+  await page().getByRole('button', { name: 'Settings' }).click()
+  const thinking = page().getByRole('switch', { name: "Show Code Puppy's work" })
+  await expect(thinking).toHaveAttribute('aria-checked', 'false') // off by default
+  await thinking.click()
+  await expect(thinking).toHaveAttribute('aria-checked', 'true')
+  expect((await page().evaluate(() => window.puppy.getSettings())).thinkingMode).toBe(true)
+  await thinking.click()
+  await expect(thinking).toHaveAttribute('aria-checked', 'false')
+
+  await page().getByRole('button', { name: 'Chat', exact: true }).click()
+})
+
 test('settings persist across a restart of the page', async () => {
   await page().reload()
   await expect(page().getByRole('heading', { name: /, Testy$/ })).toBeVisible()

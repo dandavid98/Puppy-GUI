@@ -12,6 +12,7 @@ import { allowLocalFraming, handlePreviewProtocol, registerPreviewScheme } from 
 import { pythonNextTo, QuotaService } from './quota'
 import { SessionIndex } from './sessionIndex'
 import { SettingsStore } from './settings'
+import { VpnWatch } from './vpn'
 import { Workspace } from './workspace'
 
 let mainWindow: BrowserWindow | null = null
@@ -92,18 +93,24 @@ void app.whenReady().then(() => {
   const previewDir = join(data, 'previews')
   handlePreviewProtocol(() => [previewDir, ...workspace.roots])
   allowLocalFraming(session.defaultSession)
-  registerIpc({ agents, workspace, organizer, settings, quota, info, previewDir, window: () => mainWindow })
+  const vpn = new VpnWatch()
+  registerIpc({ agents, workspace, organizer, settings, quota, vpn, info, previewDir, window: () => mainWindow })
   openWindow()
   mkdirSync(chatDir, { recursive: true }) // the home process starts in it
   void agents.home.context().catch(() => undefined) // warm up now; errors reach the UI via status events
   quota.start()
+  void vpn.check() // so a launch off the VPN says so straight away
   // Timers do not count the time a Mac spends asleep, so the reset-time refresh can wake up late: read again on wake.
-  powerMonitor.on('resume', () => quota.refreshSoon())
+  powerMonitor.on('resume', () => {
+    quota.refreshSoon()
+    void vpn.check() // a laptop lid closed at the office wakes up at home
+  })
 
   if (app.dock && existsSync(ICON_PNG)) app.dock.setIcon(ICON_PNG) // dev runs show the puppy, not Electron's atom
   app.on('activate', () => mainWindow ?? openWindow())
   app.on('before-quit', () => {
     quota.stop()
+    vpn.stop()
     agents.stop()
   })
 })

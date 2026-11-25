@@ -3,7 +3,7 @@ import type { Attachment, OpenedSession, SessionSummary, Settings } from '@share
 import { describe, expect, it } from 'vitest'
 import { initialState, reducer, type Action, type AppState } from './store'
 
-const settings = (autoPreview: boolean): Settings => ({ theme: 'system', displayName: 'Dan', smartTitles: true, autoPreview })
+const settings = (autoPreview: boolean): Settings => ({ theme: 'system', displayName: 'Dan', smartTitles: true, autoPreview, thinkingMode: false })
 const session: OpenedSession = { sessionId: 's1', cwd: '/work/app', kind: 'code', configOptions: [] }
 
 const AT = '2026-11-25T10:00:00.000Z'
@@ -107,6 +107,15 @@ describe('turn bookkeeping', () => {
   it('starts a reopened conversation from its saved context size', () => {
     const reopened = run(initialState, { type: 'opened', session, contextTokens: 42_000, replaying: true })
     expect(reopened.threads.s1).toMatchObject({ contextTokens: 42_000, replaying: true })
+  })
+})
+
+describe('vpn status', () => {
+  it('starts out unknown, then follows what the main process reports', () => {
+    expect(initialState.vpn).toBe('unknown')
+    const off = run(initialState, { type: 'vpn', status: 'disconnected' })
+    expect(off.vpn).toBe('disconnected')
+    expect(run(off, { type: 'vpn', status: 'connected' }).vpn).toBe('connected')
   })
 })
 

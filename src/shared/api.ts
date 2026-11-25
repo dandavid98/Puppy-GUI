@@ -26,7 +26,12 @@ export interface Settings {
   smartTitles: boolean
   /** Show pages Code Puppy writes, and local servers it starts, in the side panel on their own. */
   autoPreview: boolean
+  /** Show Code Puppy's work as it happens, like the terminal does: thoughts, reasoning and every tool call, opened up. */
+  thinkingMode: boolean
 }
+
+/** Whether Walmart's network (VPN or Eagle WiFi) is reachable. Code Puppy cannot work without it. */
+export type VpnStatus = 'unknown' | 'connected' | 'disconnected'
 
 /** One quota bucket: tokens (or requests) used out of the limit for the current period. */
 export interface QuotaBucket {
@@ -119,6 +124,9 @@ export interface PuppyApi {
   restartAgent(): Promise<void>
   getAppInfo(): Promise<AppInfo>
   revealLog(): Promise<void>
+  getVpnStatus(): Promise<VpnStatus>
+  /** Probe right now, e.g. from a "Check again" button. */
+  checkVpn(): Promise<VpnStatus>
   getSettings(): Promise<Settings>
   updateSettings(patch: Partial<Settings>): Promise<Settings>
   listSessions(): Promise<SessionSummary[]>
@@ -159,6 +167,7 @@ export interface PuppyApi {
   onPermissionRequest(listener: (prompt: PermissionPrompt) => void): Unsubscribe
   onSessionsChanged(listener: () => void): Unsubscribe
   onQuota(listener: (quota: QuotaSnapshot | null) => void): Unsubscribe
+  onVpnStatus(listener: (status: VpnStatus) => void): Unsubscribe
   /** Start Code Puppy for a project folder ahead of the first message, so that message is not slow. */
   prepareFolder(path: string): Promise<void>
 }
@@ -169,6 +178,8 @@ export const Invoke = {
   restartAgent: 'agent:restart',
   getAppInfo: 'app:info',
   revealLog: 'app:reveal-log',
+  getVpnStatus: 'vpn:get',
+  checkVpn: 'vpn:check',
   getSettings: 'settings:get',
   updateSettings: 'settings:update',
   listSessions: 'session:list',
@@ -204,4 +215,5 @@ export const Push = {
   permissionRequest: 'permission:request',
   sessionsChanged: 'session:list-changed',
   quota: 'quota:changed',
+  vpn: 'vpn:changed',
 } as const

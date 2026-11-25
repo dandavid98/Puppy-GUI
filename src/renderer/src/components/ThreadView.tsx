@@ -8,6 +8,8 @@ import { PermissionCard } from './PermissionCard'
 
 interface Props {
   thread: Thread
+  /** Thinking mode: show Code Puppy's work opened up, as the terminal does. */
+  showWork: boolean
   permissions: PermissionPrompt[]
   modelPicker: ReactNode
   contextMeter: ReactNode
@@ -20,7 +22,7 @@ interface Props {
 
 const STICK_THRESHOLD = 120
 
-export function ThreadView({ thread, permissions, modelPicker, contextMeter, commands, onSend, onStop, onChooseFolder, onAnswer }: Props) {
+export function ThreadView({ thread, showWork, permissions, modelPicker, contextMeter, commands, onSend, onStop, onChooseFolder, onAnswer }: Props) {
   const [draft, setDraft] = useState('')
   const scroller = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
@@ -48,7 +50,7 @@ export function ThreadView({ thread, permissions, modelPicker, contextMeter, com
       <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
         <div role="log" aria-label="Conversation" className="mx-auto w-full max-w-3xl space-y-5 px-6 pt-4 pb-8">
           {thread.items.map((item) => (
-            <Message key={item.id} item={item} />
+            <Message key={item.id} item={item} showWork={showWork} />
           ))}
           {permissions.map((prompt) => (
             <PermissionCard key={prompt.requestId} prompt={prompt} onAnswer={onAnswer} />

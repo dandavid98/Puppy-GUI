@@ -8,6 +8,7 @@ import type { Organizer } from './organizer'
 import { openInBrowser, writePreviewHtml } from './preview'
 import type { QuotaService } from './quota'
 import type { SettingsStore } from './settings'
+import type { VpnWatch } from './vpn'
 import type { Workspace } from './workspace'
 
 interface Deps {
@@ -16,6 +17,7 @@ interface Deps {
   organizer: Organizer
   settings: SettingsStore
   quota: QuotaService
+  vpn: VpnWatch
   info: AppInfo
   /** Where HTML from chat code blocks is written for previewing. */
   previewDir: string
@@ -28,18 +30,21 @@ export function applyTheme(settings: Settings): void {
 }
 
 /** Wires the `window.puppy` contract (src/shared/api.ts) to the main process. */
-export function registerIpc({ agents, workspace, organizer, settings, quota, info, previewDir, window }: Deps): void {
+export function registerIpc({ agents, workspace, organizer, settings, quota, vpn, info, previewDir, window }: Deps): void {
   const push = (channel: string, payload?: unknown) => window()?.webContents.send(channel, payload)
   agents.on('status', (status) => push(Push.status, status))
   agents.on('sessionUpdate', (notification) => push(Push.sessionUpdate, notification))
   agents.on('permissionRequest', (prompt) => push(Push.permissionRequest, prompt))
   workspace.on('changed', () => push(Push.sessionsChanged))
   quota.on('changed', (snapshot) => push(Push.quota, snapshot))
+  vpn.on('changed', (status) => push(Push.vpn, status))
 
   ipcMain.handle(Invoke.getStatus, () => agents.status)
   ipcMain.handle(Invoke.restartAgent, () => agents.restart())
   ipcMain.handle(Invoke.getAppInfo, () => info)
   ipcMain.handle(Invoke.revealLog, () => shell.showItemInFolder(info.logPath))
+  ipcMain.handle(Invoke.getVpnStatus, () => vpn.status)
+  ipcMain.handle(Invoke.checkVpn, () => vpn.check())
   ipcMain.handle(Invoke.getSettings, () => settings.get())
   ipcMain.handle(Invoke.updateSettings, (_event, patch) => {
     const next = settings.update(patch)
@@ -59,7 +64,10 @@ export function registerIpc({ agents, workspace, organizer, settings, quota, inf
   ipcMain.handle(Invoke.createFolder, (_event, name, kind) => organizer.createFolder(name, kind))
   ipcMain.handle(Invoke.updateFolder, (_event, id, patch) => organizer.updateFolder(String(id), patch ?? {}))
   ipcMain.handle(Invoke.deleteFolder, (_event, id) => organizer.deleteFolder(String(id)))
-  ipcMain.handle(Invoke.prompt, (_event, sessionId, text, attachments) => workspace.prompt(sessionId, text, attachments))
+  ipcMain.handle(Invoke.prompt, (_event, sessionId, text, attachments) => {
+    void vpn.check() // off the VPN the turn just hangs; this is how the UI finds out why
+    return workspace.prompt(sessionId, text, attachments)
+  })
   ipcMain.handle(Invoke.cancel, (_event, sessionId) => workspace.cancel(sessionId))
   ipcMain.handle(Invoke.getConfigOptions, () => workspace.configOptions())
   ipcMain.handle(Invoke.setModel, (_event, value, sessionId) => workspace.setModel(value, sessionId))

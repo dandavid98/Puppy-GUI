@@ -15,7 +15,7 @@ export const shot = (page: Page, name: string) => page.screenshot({ path: join('
  * real chats) and wait until code-puppy is connected. One app per spec file:
  * booting code-puppy is the slow part.
  */
-export function useApp(): { app: () => ElectronApplication; page: () => Page } {
+export function useApp(extraEnv: Record<string, string> = {}): { app: () => ElectronApplication; page: () => Page } {
   let app: ElectronApplication
   let page: Page
 
@@ -26,7 +26,7 @@ export function useApp(): { app: () => ElectronApplication; page: () => Page } {
     app = await electron.launch({
       ...target,
       colorScheme: null, // Playwright pins "light" by default, which would mask the app's own theme switching
-      env: { ...process.env, PUPPY_DESKTOP_USER_DATA: mkdtempSync(join(tmpdir(), 'puppy-e2e-')) },
+      env: { ...process.env, PUPPY_DESKTOP_USER_DATA: mkdtempSync(join(tmpdir(), 'puppy-e2e-')), ...extraEnv },
     })
     page = await app.firstWindow()
     await expect(page.getByText('Code Puppy is ready')).toBeVisible(AGENT)

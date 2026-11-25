@@ -77,7 +77,7 @@ export function App() {
       return (
         <ThreadView
           thread={thread}
-          permissions={state.permissions.filter((prompt) => prompt.sessionId === thread.sessionId)}
+          showWork={state.settings?.thinkingMode === true}          permissions={state.permissions.filter((prompt) => prompt.sessionId === thread.sessionId)}
           modelPicker={modelPicker}
           contextMeter={contextMeter}
           commands={state.commands}
@@ -130,7 +130,7 @@ export function App() {
           title={thread ? title : null}
           folder={thread?.kind === 'code' ? thread.cwd : null}
         />
-        <Banners status={state.status} notice={state.notice} onRetry={actions.restartAgent} onDismiss={actions.dismissNotice} />
+        <Banners status={state.status} notice={state.notice} vpn={state.vpn} onRetry={actions.restartAgent} onCheckVpn={() => void actions.checkVpn()} onDismiss={actions.dismissNotice} />
         {main()}
       </main>
       {state.preview && thread && (

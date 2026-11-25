@@ -1,6 +1,6 @@
 import type { AvailableCommand, SessionConfigOption, SessionNotification } from '@agentclientprotocol/sdk'
 import type { PreviewTarget } from '@shared/preview'
-import type { AgentStatus, Attachment, ChatFolder, OpenedSession, PermissionPrompt, QuotaSnapshot, SessionSummary, Settings, WorkspaceKind } from '@shared/api'
+import type { AgentStatus, Attachment, ChatFolder, OpenedSession, PermissionPrompt, QuotaSnapshot, SessionSummary, Settings, VpnStatus, WorkspaceKind } from '@shared/api'
 import { previewForCompletedCall, previewForReply, type AutoPreview } from './autoPreview'
 import { titleFrom, titleSource } from '@shared/titles'
 import { addError, addUserMessage, applyUpdate, type ThreadItem } from './thread'
@@ -43,6 +43,8 @@ export interface AppState {
   /** Set when the model list could not be fetched, so the UI can offer a retry. */
   modelError: boolean
   view: 'conversation' | 'settings'
+  /** Off the VPN, Code Puppy cannot reach its servers and turns just hang. */
+  vpn: VpnStatus
   /** Errors with no thread to live in (e.g. a session that failed to start). */
   notice: string | null
 }
@@ -64,6 +66,7 @@ export type Action =
   | { type: 'preview'; target: PreviewTarget | null }
   | { type: 'pendingUrlHandled' }
   | { type: 'quota'; quota: QuotaSnapshot | null }
+  | { type: 'vpn'; status: VpnStatus }
   | { type: 'modelContexts'; contexts: Record<string, number> }
   | { type: 'modelError'; failed: boolean }
   | { type: 'view'; view: AppState['view'] }
@@ -91,6 +94,7 @@ export const initialState: AppState = {
   modelContexts: {},
   modelError: false,
   view: 'conversation',
+  vpn: 'unknown',
   notice: null,
 }
 
@@ -246,6 +250,8 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, pendingUrl: null }
     case 'quota':
       return { ...state, quota: action.quota }
+    case 'vpn':
+      return { ...state, vpn: action.status }
     case 'modelContexts':
       return { ...state, modelContexts: action.contexts }
     case 'modelError':
