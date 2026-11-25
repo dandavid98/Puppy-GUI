@@ -1,4 +1,4 @@
-import { CodeXml, MessagesSquare, Moon, PanelLeftClose, PawPrint, Plus, Settings as SettingsIcon, Sun } from 'lucide-react'
+import { CircleArrowUp, CodeXml, MessagesSquare, Moon, PanelLeftClose, PawPrint, Plus, Settings as SettingsIcon, Sun } from 'lucide-react'
 import type { AgentStatus, ChatFolder, SessionSummary, ThemePreference, WorkspaceKind } from '@shared/api'
 import { useDarkMode } from '../lib/useDarkMode'
 import { ConversationList, type ConversationActions } from './ConversationList'
@@ -10,6 +10,9 @@ interface Props {
   mode: WorkspaceKind
   status: AgentStatus
   settingsOpen: boolean
+  /** A newer Puppy is waiting: show the badge. */
+  updateAvailable: boolean
+  onUpdate: () => void
   onNew: (kind: WorkspaceKind) => void
   actions: ConversationActions
   onTheme: (theme: ThemePreference) => void
@@ -44,7 +47,7 @@ function NavItem({ active, icon: Icon, label, onClick }: { active: boolean; icon
 }
 
 export function Sidebar(props: Props) {
-  const { sessions, folders, activeId, mode, status, settingsOpen, actions, onNew, onTheme, onSettings, onCollapse } = props
+  const { sessions, folders, activeId, mode, status, settingsOpen, updateAvailable, onUpdate, actions, onNew, onTheme, onSettings, onCollapse } = props
   const dark = useDarkMode()
 
   return (
@@ -82,6 +85,18 @@ export function Sidebar(props: Props) {
           <span aria-hidden className={`size-2 shrink-0 rounded-full ${STATUS_DOT[status.state]}`} />
           <span className="truncate">{STATUS_TEXT[status.state]}</span>
         </span>
+        {updateAvailable && (
+          <button
+            type="button"
+            onClick={onUpdate}
+            aria-label="Update available: update Puppy"
+            title="Update ready. Click to update Puppy"
+            className={`${ICON_BUTTON} relative text-accent hover:text-accent`}
+          >
+            <CircleArrowUp size={16} aria-hidden />
+            <span aria-hidden className="absolute top-1 right-1 size-1.5 rounded-full bg-accent ring-2 ring-sidebar" />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onTheme(dark ? 'light' : 'dark')}

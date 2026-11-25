@@ -45,6 +45,8 @@ export interface AppState {
   view: 'conversation' | 'settings'
   /** Off the VPN, Code Puppy cannot reach its servers and turns just hang. */
   vpn: VpnStatus
+  /** A newer Puppy is waiting (checked in the background). */
+  updateAvailable: boolean
   /** Errors with no thread to live in (e.g. a session that failed to start). */
   notice: string | null
 }
@@ -67,6 +69,7 @@ export type Action =
   | { type: 'pendingUrlHandled' }
   | { type: 'quota'; quota: QuotaSnapshot | null }
   | { type: 'vpn'; status: VpnStatus }
+  | { type: 'updateAvailable'; available: boolean }
   | { type: 'modelContexts'; contexts: Record<string, number> }
   | { type: 'modelError'; failed: boolean }
   | { type: 'view'; view: AppState['view'] }
@@ -95,6 +98,7 @@ export const initialState: AppState = {
   modelError: false,
   view: 'conversation',
   vpn: 'unknown',
+  updateAvailable: false,
   notice: null,
 }
 
@@ -252,6 +256,8 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, quota: action.quota }
     case 'vpn':
       return { ...state, vpn: action.status }
+    case 'updateAvailable':
+      return { ...state, updateAvailable: action.available }
     case 'modelContexts':
       return { ...state, modelContexts: action.contexts }
     case 'modelError':

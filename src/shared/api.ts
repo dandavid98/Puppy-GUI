@@ -131,6 +131,8 @@ export interface PuppyApi {
   restartAgent(): Promise<void>
   /** Pull, reinstall and repackage Puppy from its own source, then reopen it (asks first). */
   updateApp(): Promise<UpdateOutcome>
+  /** Is a newer Puppy waiting? (Checked in the background.) */
+  getUpdateAvailable(): Promise<boolean>
   getAppInfo(): Promise<AppInfo>
   revealLog(): Promise<void>
   getVpnStatus(): Promise<VpnStatus>
@@ -177,6 +179,7 @@ export interface PuppyApi {
   onSessionsChanged(listener: () => void): Unsubscribe
   onQuota(listener: (quota: QuotaSnapshot | null) => void): Unsubscribe
   onVpnStatus(listener: (status: VpnStatus) => void): Unsubscribe
+  onUpdateAvailable(listener: (available: boolean) => void): Unsubscribe
   /** Start Code Puppy for a project folder ahead of the first message, so that message is not slow. */
   prepareFolder(path: string): Promise<void>
 }
@@ -186,6 +189,7 @@ export const Invoke = {
   getStatus: 'agent:get-status',
   restartAgent: 'agent:restart',
   updateApp: 'app:update',
+  getUpdateAvailable: 'app:update-available',
   getAppInfo: 'app:info',
   revealLog: 'app:reveal-log',
   getVpnStatus: 'vpn:get',
@@ -226,4 +230,5 @@ export const Push = {
   sessionsChanged: 'session:list-changed',
   quota: 'quota:changed',
   vpn: 'vpn:changed',
+  updateAvailable: 'app:update-available-changed',
 } as const

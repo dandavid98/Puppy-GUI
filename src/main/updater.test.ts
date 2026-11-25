@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { checkForUpdate, describeUpdate, isAvailable, updatePuppy, type Git } from './updater'
+import { checkForUpdate, describeUpdate, isAvailable, updateAvailable, updatePuppy, type Git } from './updater'
 
 /** A fake git that answers by subcommand; a value of `Error` makes that command fail. */
 function fakeGit(answers: { fetch?: string | Error; behind?: string | Error; head?: string | Error }): Git {
@@ -51,6 +51,29 @@ describe('describeUpdate', () => {
     expect(isAvailable({ behind: 0, rebuild: false, offline: false })).toBe(false)
     expect(isAvailable({ behind: 1, rebuild: false, offline: false })).toBe(true)
     expect(isAvailable({ behind: 0, rebuild: true, offline: false })).toBe(true)
+  })
+})
+
+describe('updateAvailable (the sidebar badge)', () => {
+  const appWith = (info: object) => {
+    const appPath = mkdtempSync(join(tmpdir(), 'puppy-badge-'))
+    writeFileSync(join(appPath, 'package.json'), JSON.stringify(info))
+    return appPath
+  }
+  const built = { puppySource: '/src', puppyCommit: 'abc' }
+
+  it('is true when GitHub has something new, or the source is ahead of the app', async () => {
+    expect(await updateAvailable({ appPath: appWith(built), packaged: true, run: fakeGit({ behind: '1', head: 'abc' }) })).toBe(true)
+    expect(await updateAvailable({ appPath: appWith(built), packaged: true, run: fakeGit({ behind: '0', head: 'newer' }) })).toBe(true)
+  })
+
+  it('is false when current', async () => {
+    expect(await updateAvailable({ appPath: appWith(built), packaged: true, run: fakeGit({ behind: '0', head: 'abc' }) })).toBe(false)
+  })
+
+  it('is quietly false when updating is impossible: from source, or an app that does not know its code', async () => {
+    expect(await updateAvailable({ appPath: appWith(built), packaged: false, run: fakeGit({ behind: '1', head: 'abc' }) })).toBe(false)
+    expect(await updateAvailable({ appPath: appWith({}), packaged: true, run: fakeGit({ behind: '1', head: 'abc' }) })).toBe(false)
   })
 })
 

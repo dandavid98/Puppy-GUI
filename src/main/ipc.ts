@@ -9,6 +9,7 @@ import { openInBrowser, writePreviewHtml } from './preview'
 import type { QuotaService } from './quota'
 import type { SettingsStore } from './settings'
 import { updatePuppy } from './updater'
+import type { UpdateWatch } from './updateWatch'
 import type { VpnWatch } from './vpn'
 import type { Workspace } from './workspace'
 
@@ -19,6 +20,7 @@ interface Deps {
   settings: SettingsStore
   quota: QuotaService
   vpn: VpnWatch
+  updates: UpdateWatch
   info: AppInfo
   /** Where HTML from chat code blocks is written for previewing. */
   previewDir: string
@@ -31,7 +33,7 @@ export function applyTheme(settings: Settings): void {
 }
 
 /** Wires the `window.puppy` contract (src/shared/api.ts) to the main process. */
-export function registerIpc({ agents, workspace, organizer, settings, quota, vpn, info, previewDir, window }: Deps): void {
+export function registerIpc({ agents, workspace, organizer, settings, quota, vpn, updates, info, previewDir, window }: Deps): void {
   const push = (channel: string, payload?: unknown) => window()?.webContents.send(channel, payload)
   agents.on('status', (status) => push(Push.status, status))
   agents.on('sessionUpdate', (notification) => push(Push.sessionUpdate, notification))
@@ -39,11 +41,13 @@ export function registerIpc({ agents, workspace, organizer, settings, quota, vpn
   workspace.on('changed', () => push(Push.sessionsChanged))
   quota.on('changed', (snapshot) => push(Push.quota, snapshot))
   vpn.on('changed', (status) => push(Push.vpn, status))
+  updates.on('changed', (available) => push(Push.updateAvailable, available))
 
   ipcMain.handle(Invoke.getStatus, () => agents.status)
   ipcMain.handle(Invoke.restartAgent, () => agents.restart())
-  ipcMain.handle(Invoke.updateApp, () =>
-    updatePuppy({
+  ipcMain.handle(Invoke.getUpdateAvailable, () => updates.available)
+  ipcMain.handle(Invoke.updateApp, async () => {
+    const outcome = await updatePuppy({
       appPath: app.getAppPath(),
       packaged: app.isPackaged,
       dataPath: info.dataPath,
@@ -55,8 +59,10 @@ export function registerIpc({ agents, workspace, organizer, settings, quota, vpn
         return response === 0
       },
       quit: () => app.quit(),
-    }),
-  )
+    })
+    void updates.check() // said "up to date", or not: the badge should agree
+    return outcome
+  })
   ipcMain.handle(Invoke.getAppInfo, () => info)
   ipcMain.handle(Invoke.revealLog, () => shell.showItemInFolder(info.logPath))
   ipcMain.handle(Invoke.getVpnStatus, () => vpn.status)

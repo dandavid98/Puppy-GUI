@@ -62,15 +62,31 @@ interface Deps {
 const launchDetached = (script: string, args: string[], cwd: string) =>
   spawn('bash', [script, ...args], { cwd, detached: true, stdio: 'ignore' }).unref()
 
+type Located = { source: string; commit: string | undefined } | { reason: string }
+
+/** Where the installed app's code lives and which commit it was built at, or why we cannot tell. */
+function locate(appPath: string, packaged: boolean): Located {
+  if (!packaged) return { reason: 'You are running Puppy from source. Updating is for the installed Puppy.app.' }
+  const { puppySource: source, puppyCommit: commit } = readJson<BuildInfo>(join(appPath, 'package.json'), {})
+  if (!source) return { reason: 'This copy of Puppy does not know where its code is. Run `npm run package:mac` once from the source folder, then try again.' }
+  return { source, commit }
+}
+
+/** Is there something to update to? Quietly false when updating is not possible at all (e.g. running from source). */
+export async function updateAvailable({ appPath, packaged, run = git }: Pick<Deps, 'appPath' | 'packaged' | 'run'>): Promise<boolean> {
+  const found = locate(appPath, packaged)
+  return 'reason' in found ? false : isAvailable(await checkForUpdate(found.source, found.commit, run))
+}
+
 /**
  * "Update Puppy": pull what is new (if anything), reinstall dependencies if they
  * changed, repackage, and reopen. The work is done by scripts/update-app.sh,
  * detached, because an app cannot replace itself while it is running.
  */
 export async function updatePuppy({ appPath, packaged, dataPath, pid, confirm, quit, run = git, launch = launchDetached }: Deps): Promise<UpdateOutcome> {
-  if (!packaged) return { state: 'unavailable', reason: 'You are running Puppy from source. Updating is for the installed Puppy.app.' }
-  const { puppySource: source, puppyCommit } = readJson<BuildInfo>(join(appPath, 'package.json'), {})
-  if (!source) return { state: 'unavailable', reason: 'This copy of Puppy does not know where its code is. Run `npm run package:mac` once from the source folder, then try again.' }
+  const found = locate(appPath, packaged)
+  if ('reason' in found) return { state: 'unavailable', reason: found.reason }
+  const { source, commit: puppyCommit } = found
 
   const check = await checkForUpdate(source, puppyCommit, run)
   if (!isAvailable(check)) {

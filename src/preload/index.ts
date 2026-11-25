@@ -11,6 +11,7 @@ const api: PuppyApi = {
   getStatus: () => ipcRenderer.invoke(Invoke.getStatus),
   restartAgent: () => ipcRenderer.invoke(Invoke.restartAgent),
   updateApp: () => ipcRenderer.invoke(Invoke.updateApp),
+  getUpdateAvailable: () => ipcRenderer.invoke(Invoke.getUpdateAvailable),
   getAppInfo: () => ipcRenderer.invoke(Invoke.getAppInfo),
   revealLog: () => ipcRenderer.invoke(Invoke.revealLog),
   getVpnStatus: () => ipcRenderer.invoke(Invoke.getVpnStatus),
@@ -47,6 +48,7 @@ const api: PuppyApi = {
   onSessionsChanged: (listener) => subscribe(Push.sessionsChanged, listener),
   onQuota: (listener) => subscribe(Push.quota, listener),
   onVpnStatus: (listener) => subscribe(Push.vpn, listener),
+  onUpdateAvailable: (listener) => subscribe(Push.updateAvailable, listener),
 }
 
 contextBridge.exposeInMainWorld('puppy', api)

@@ -55,11 +55,13 @@ export function usePuppy() {
       api.onSessionsChanged(() => void refreshSessions()),
       api.onQuota((quota) => dispatch({ type: 'quota', quota })),
       api.onVpnStatus((status) => dispatch({ type: 'vpn', status })),
+      api.onUpdateAvailable((available) => dispatch({ type: 'updateAvailable', available })),
     ]
     void api.getStatus().then((status) => dispatch({ type: 'status', status }))
     void api.getSettings().then((settings) => dispatch({ type: 'settings', settings }))
     void api.getQuota().then((quota) => dispatch({ type: 'quota', quota }))
     void api.getVpnStatus().then((status) => dispatch({ type: 'vpn', status }))
+    void api.getUpdateAvailable().then((available) => dispatch({ type: 'updateAvailable', available }))
     void api.getModelContexts().then((contexts) => dispatch({ type: 'modelContexts', contexts }))
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe())
   }, [refreshSessions])
@@ -146,6 +148,12 @@ export function usePuppy() {
       cancel: (sessionId: string) => void api.cancel(sessionId),
       restartAgent: () => void api.restartAgent().catch(() => undefined),
       updateApp: api.updateApp,
+      /** From the sidebar badge: the confirmation dialog is the main process's; only a refusal to even try needs saying. */
+      updateNow: () =>
+        guard(async () => {
+          const outcome = await api.updateApp()
+          if (outcome.state === 'unavailable') dispatch({ type: 'notice', message: outcome.reason })
+        }),
       dismissNotice: go({ type: 'notice', message: null }),
       openSettings: go({ type: 'view', view: 'settings' }),
       closeSettings: go({ type: 'view', view: 'conversation' }),

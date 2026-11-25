@@ -116,6 +116,8 @@ export function App() {
           mode={state.mode}
           status={state.status}
           settingsOpen={inSettings}
+          updateAvailable={state.updateAvailable}
+          onUpdate={() => void actions.updateNow()}
           onNew={actions.newConversation}
           actions={actions}
           onTheme={(theme) => void actions.updateSettings({ theme })}

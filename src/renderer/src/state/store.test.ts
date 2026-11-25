@@ -110,6 +110,15 @@ describe('turn bookkeeping', () => {
   })
 })
 
+describe('update badge', () => {
+  it('is hidden until the main process says an update is waiting, and clears again', () => {
+    expect(initialState.updateAvailable).toBe(false)
+    const waiting = run(initialState, { type: 'updateAvailable', available: true })
+    expect(waiting.updateAvailable).toBe(true)
+    expect(run(waiting, { type: 'updateAvailable', available: false }).updateAvailable).toBe(false)
+  })
+})
+
 describe('vpn status', () => {
   it('starts out unknown, then follows what the main process reports', () => {
     expect(initialState.vpn).toBe('unknown')
