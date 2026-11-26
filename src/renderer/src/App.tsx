@@ -77,6 +77,7 @@ export function App() {
     if (thread) {
       return (
         <ThreadView
+          key={thread.sessionId} // a fresh view per conversation: no scroll position, draft or attachments carried over
           thread={thread}
           showWork={state.settings?.thinkingMode === true}          permissions={state.permissions.filter((prompt) => prompt.sessionId === thread.sessionId)}
           modelPicker={modelPicker}

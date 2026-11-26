@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { AvailableCommand } from '@agentclientprotocol/sdk'
 import type { Attachment, PermissionPrompt } from '@shared/api'
 import type { Thread } from '../state/store'
@@ -29,16 +29,22 @@ export function ThreadView({ thread, showWork, permissions, modelPicker, context
   const last = thread.items.at(-1)
   const showThinking = thread.running && last?.type !== 'assistant' && last?.type !== 'thought'
 
-  // Follow the stream, unless the user has scrolled up to read.
-  useEffect(() => {
+  // A conversation starts at its latest message (this component is remounted per conversation, see App), then
+  // follows the stream unless the user has scrolled up to read. A saved history replays faster than scroll events
+  // arrive, so while it loads we always follow, and once it is loaded we land on the end for certain.
+  const toBottom = () => {
     const element = scroller.current
-    if (element && stickToBottom.current) element.scrollTop = element.scrollHeight
-  }, [thread.items, permissions.length, showThinking])
-
-  useEffect(() => {
+    if (element) element.scrollTop = element.scrollHeight
+  }
+  useLayoutEffect(() => {
+    if (thread.replaying) stickToBottom.current = true
+    if (stickToBottom.current) toBottom()
+  }, [thread.items, thread.replaying, permissions.length, showThinking])
+  useLayoutEffect(() => {
+    if (thread.replaying) return
     stickToBottom.current = true
-    setDraft('')
-  }, [thread.sessionId])
+    toBottom()
+  }, [thread.replaying])
 
   const onScroll = () => {
     const element = scroller.current
