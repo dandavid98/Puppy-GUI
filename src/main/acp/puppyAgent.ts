@@ -13,6 +13,7 @@ import {
 import type { AgentStatus, PermissionPrompt } from '@shared/api'
 import type { Agent } from './agentPool'
 import { jsonLinesOnly } from './jsonLinesOnly'
+import { acpLaunch } from './launch'
 import { PermissionBroker } from './permissionBroker'
 
 type Events = {
@@ -91,7 +92,8 @@ export class PuppyAgent extends EventEmitter<Events> implements Agent {
     const generation = this.generation
     await this.beforeStart().catch(() => undefined) // best effort: Code Puppy's own default is a fine fallback
     if (generation !== this.generation) throw new Error('Code Puppy was stopped before it started.')
-    const child = spawn(this.locateBinary(), ['--acp'], {
+    const { command, args } = acpLaunch(this.locateBinary())
+    const child = spawn(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: this.folder,
       env: { ...process.env, PWD: this.folder }, // shells trust $PWD over the real directory when it disagrees
