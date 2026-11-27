@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
-import { BadgeCheck, LogIn, Trash2 } from 'lucide-react'
-import { catalogServerId, type McpCatalogEntry, type McpListing, type McpState } from '@shared/api'
+import { BadgeCheck, Trash2 } from 'lucide-react'
+import { catalogServerId, type ConnectionDraft, type ConnectionInfo, type McpCatalogEntry, type McpListing, type McpState } from '@shared/api'
 import { readableError } from '../state/usePuppy'
+import { ConnectionsSection } from './ConnectionsSection'
 import { McpCatalogItem } from './McpCatalogItem'
 import { AddControl, McpSearchList } from './McpSearchList'
-import { BUTTON, Page, Section } from './ui/Page'
+import { Page, Section } from './ui/Page'
 import { Switch } from './ui/Switch'
 
 interface Props {
@@ -16,44 +17,17 @@ interface Props {
   removeServer: (id: string) => Promise<McpState>
   setServerEnabled: (id: string, enabled: boolean) => Promise<McpState>
   signIn: () => Promise<McpState>
+  listConnections: () => Promise<ConnectionInfo[]>
+  addConnection: (draft: ConnectionDraft) => Promise<ConnectionInfo[]>
+  removeConnection: (id: string) => Promise<ConnectionInfo[]>
+  chooseConnectionFile: () => Promise<string | null>
+  openConnectionRenewal: (id: string) => Promise<void>
 }
 
 const listingText = (listing: McpListing) => `${listing.displayName} ${listing.description} ${listing.author} ${listing.tags.join(' ')}`
 const entryText = (entry: McpCatalogEntry) => `${entry.displayName} ${entry.description} ${entry.category} ${entry.tags.join(' ')}`
 
-function SignIn({ signedIn, onSignIn }: { signedIn: boolean | null | undefined; onSignIn: () => Promise<McpState> }) {
-  const [waiting, setWaiting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const signIn = () => {
-    setWaiting(true)
-    setError(null)
-    onSignIn()
-      .then((state) => state.signedIn || setError('Signing in did not finish. Try again, and complete the sign-in in Chrome.'))
-      .catch((failure: unknown) => setError(readableError(failure)))
-      .finally(() => setWaiting(false))
-  }
-  return (
-    <Section
-      title="Walmart sign-in"
-      description="Marketplace servers need your Walmart SSO sign-in. Chrome opens for a moment, and closes by itself if you are already signed in."
-    >
-      <div className="flex flex-wrap items-center gap-3">
-        <p role="status" className="flex-1 text-sm">
-          {waiting ? 'Waiting for you to finish in Chrome...' : signedIn ? 'Signed in.' : signedIn === false ? 'Not signed in: your servers wait until you are.' : 'Checking...'}
-        </p>
-        {!signedIn && (
-          <button type="button" onClick={signIn} disabled={waiting} className={BUTTON}>
-            <LogIn size={14} aria-hidden />
-            Sign in
-          </button>
-        )}
-      </div>
-      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
-    </Section>
-  )
-}
-
-export function McpView({ mcp, listMarketplace, listCatalog, addServer, addCatalogServer, removeServer, setServerEnabled, signIn }: Props) {
+export function McpView({ mcp, listMarketplace, listCatalog, addServer, addCatalogServer, removeServer, setServerEnabled, signIn, listConnections, addConnection, removeConnection, chooseConnectionFile, openConnectionRenewal }: Props) {
   const [adding, setAdding] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -77,7 +51,15 @@ export function McpView({ mcp, listMarketplace, listCatalog, addServer, addCatal
       title="MCP servers"
       description="Give Code Puppy more tools, from Walmart's MCP marketplace or Code Puppy's own catalog. Servers you add here are Puppy's only: Code Puppy in the terminal does not see them. They join new chats, and chats you reopen."
     >
-      <SignIn signedIn={mcp?.signedIn} onSignIn={signIn} />
+      <ConnectionsSection
+        signedIn={mcp?.signedIn}
+        list={listConnections}
+        add={addConnection}
+        remove={removeConnection}
+        chooseFile={chooseConnectionFile}
+        openRenewal={openConnectionRenewal}
+        signIn={signIn}
+      />
       {error && <p role="alert" className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger">{error}</p>}
 
       <Section title="Your servers">

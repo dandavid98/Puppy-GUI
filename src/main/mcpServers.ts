@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import type { McpServer } from '@agentclientprotocol/sdk'
 import { catalogIdOf, catalogServerId, type McpCatalogEntry, type McpListing, type McpSource, type McpState } from '@shared/api'
 import { readJson, writeJsonAtomic } from './jsonFile'
+import { readToken } from './jwt'
 import type { Catalog, CatalogTemplate } from './mcpCatalog'
 import type { Marketplace, MarketplaceToken } from './mcpMarketplace'
 import { correctCatalogSpec, mentions, packageMirrors, parseSpec, strings, TOKEN_VARIABLE, toAcpSpec, type ServerSpec } from './mcpSpec'
@@ -111,7 +112,7 @@ export interface McpSources {
 export class McpService extends EventEmitter<{ changed: [McpState] }> {
   private servers: StoredMcpServer[]
   private signedIn: boolean | null = null
-  private cached: { token: string; expiresAtMs: number } | null = null
+  private cached: { token: string; expiresAtMs: number; knownExpiryMs: number | null } | null = null
   readonly marketplace: () => Promise<McpListing[]>
   private readonly templates: () => Promise<CatalogTemplate[]>
 
@@ -188,6 +189,18 @@ export class McpService extends EventEmitter<{ changed: [McpState] }> {
     return this.state
   }
 
+  /** The sign-in as the Connections list shows it: who, and when it really ends (not the hour assumed when that is unknown). */
+  async signInDetails(): Promise<{ signedIn: boolean; expiresAtMs: number | null; account: string | null }> {
+    await this.checkSignIn()
+    return { signedIn: this.cached !== null, expiresAtMs: this.cached?.knownExpiryMs ?? null, account: this.cached ? (readToken(this.cached.token)?.account ?? null) : null }
+  }
+
+  /** A value the user typed for a catalog server (its API key), read in the main process only. */
+  savedKey(catalogId: string, name: string): string | null {
+    const id = catalogServerId(catalogId)
+    return this.has(id) ? (this.sources.vault.get(id)[name] ?? null) : null
+  }
+
   /** What a new (or reopened) chat gets. Never throws: a chat must start even when the marketplace cannot be reached. */
   async sessionServers(): Promise<McpServer[]> {
     const enabled = this.servers.filter((server) => server.enabled)
@@ -216,7 +229,7 @@ export class McpService extends EventEmitter<{ changed: [McpState] }> {
 
   private remember({ token, expiresAt }: MarketplaceToken): void {
     // Unknown expiry: trust it for an hour, then look again.
-    this.cached = token ? { token, expiresAtMs: expiresAt ? expiresAt * 1000 : this.now() + 3_600_000 } : null
+    this.cached = token ? { token, expiresAtMs: expiresAt ? expiresAt * 1000 : this.now() + 3_600_000, knownExpiryMs: expiresAt ? expiresAt * 1000 : null } : null
     const signedIn = token !== null
     if (signedIn !== this.signedIn) {
       this.signedIn = signedIn

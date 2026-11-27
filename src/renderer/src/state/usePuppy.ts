@@ -235,6 +235,11 @@ export function usePuppy() {
       removeMcpServer: api.removeMcpServer,
       setMcpServerEnabled: api.setMcpServerEnabled,
       signInToMcp: api.signInToMcp,
+      listConnections: api.listConnections,
+      addConnection: api.addConnection,
+      removeConnection: api.removeConnection,
+      chooseConnectionFile: api.chooseConnectionFile,
+      openConnectionRenewal: api.openConnectionRenewal,
     }
   }, [send, open, guard, activeId, refreshSessions, loadModels])
 

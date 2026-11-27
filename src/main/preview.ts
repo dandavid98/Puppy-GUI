@@ -43,6 +43,21 @@ export function allowLocalFraming(session: Session): void {
   })
 }
 
+/** A web address in Chrome when it is installed, else the system default browser. */
+async function openUrl(url: string): Promise<void> {
+  if (process.platform === 'darwin') {
+    const opened = await new Promise<boolean>((done) => execFile('open', ['-a', 'Google Chrome', url], (error) => done(!error)))
+    if (opened) return
+  }
+  return shell.openExternal(url)
+}
+
+/** A saved https page (where a token is renewed). Only addresses main chose, never one the window sends. */
+export function openWebPage(url: string): Promise<void> {
+  if (!url.startsWith('https://')) throw new Error('Only https pages can be opened from here.')
+  return openUrl(url)
+}
+
 /**
  * Open a preview in the browser (Chrome when installed, else the system
  * default): either a localhost URL, or a previewable file inside an allowed
@@ -52,11 +67,11 @@ export function allowLocalFraming(session: Session): void {
 export async function openInBrowser(target: string, roots: Iterable<string>): Promise<void> {
   const isUrl = isLocalUrl(target)
   if (!isUrl && (!isPreviewable(target) || !isInside(target, roots))) throw new Error('That file cannot be opened from Puppy.')
+  if (isUrl) return openUrl(target)
   if (process.platform === 'darwin') {
     const opened = await new Promise<boolean>((done) => execFile('open', ['-a', 'Google Chrome', target], (error) => done(!error)))
     if (opened) return
   }
-  if (isUrl) return shell.openExternal(target)
   const failure = await shell.openPath(target)
   if (failure) throw new Error(failure)
 }

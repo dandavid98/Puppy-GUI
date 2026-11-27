@@ -104,6 +104,40 @@ export interface McpState {
   signedIn: boolean | null
 }
 
+/**
+ * A credential Puppy (or an app of the user's) relies on, and whether it still
+ * works. Never carries the token itself, only who it is for and when it ends.
+ */
+export interface ConnectionInfo {
+  id: string
+  name: string
+  /** Built in (Walmart sign-in, GitHub key), or one the user added. Only the latter can be removed here. */
+  removable: boolean
+  /** `connected`: a token is there (and accepted, where it can be checked). `unknown`: it could not be checked right now. */
+  state: 'connected' | 'disconnected' | 'unknown'
+  /** Whose it is, for example an email address. */
+  account: string | null
+  /** Milliseconds since the epoch; null when it does not expire or the end is unknown. */
+  expiresAt: number | null
+  note: string | null
+  /** How to get a new one. `signIn`: Puppy can start it (the Walmart sign-in). */
+  renew: { steps: string; url: string | null; signIn: boolean } | null
+}
+
+/** How an added connection's token ends. */
+export type ConnectionExpiry = { kind: 'token' } | { kind: 'days'; days: number } | { kind: 'none' }
+
+/** A token that lives in a file of `NAME=value` lines (a `.env` file). Puppy only reads it, and only to show whose it is and when it ends. */
+export interface ConnectionDraft {
+  name: string
+  file: string
+  tokenVariable: string
+  accountVariable: string
+  expiry: ConnectionExpiry
+  renewUrl: string
+  renewSteps: string
+}
+
 /** Whether Walmart's network (VPN or Eagle WiFi) is reachable. Code Puppy cannot work without it. */
 export type VpnStatus = 'unknown' | 'connected' | 'disconnected'
 
@@ -258,6 +292,13 @@ export interface PuppyApi {
   setMcpServerEnabled(id: string, enabled: boolean): Promise<McpState>
   /** Walmart SSO for the marketplace: opens Chrome, which closes again by itself if already signed in. */
   signInToMcp(): Promise<McpState>
+  listConnections(): Promise<ConnectionInfo[]>
+  addConnection(draft: ConnectionDraft): Promise<ConnectionInfo[]>
+  removeConnection(id: string): Promise<ConnectionInfo[]>
+  /** A file picker that shows hidden files (a `.env.local`); null if cancelled. */
+  chooseConnectionFile(): Promise<string | null>
+  /** Opens the connection's renewal page in the browser. */
+  openConnectionRenewal(id: string): Promise<void>
   listMcpCatalog(): Promise<McpCatalogEntry[]>
   /** Starts the server once to check it works (and to download it), then adds it. `values` go one way: never back to the window. */
   addMcpCatalogServer(id: string, values: Record<string, string>): Promise<McpState>
@@ -317,6 +358,11 @@ export const Invoke = {
   removeMcpServer: 'mcp:remove',
   setMcpServerEnabled: 'mcp:set-enabled',
   signInToMcp: 'mcp:sign-in',
+  listConnections: 'connections:list',
+  addConnection: 'connections:add',
+  removeConnection: 'connections:remove',
+  chooseConnectionFile: 'connections:choose-file',
+  openConnectionRenewal: 'connections:open-renewal',
   listMcpCatalog: 'mcp:catalog',
   addMcpCatalogServer: 'mcp:add-catalog',
 } as const satisfies Partial<Record<keyof PuppyApi, string>>

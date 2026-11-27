@@ -18,6 +18,9 @@ test.beforeAll(async () => {
 const { page } = useApp({ PUPPY_DESKTOP_USER_DATA: profile })
 test.afterAll(() => mcp?.close())
 
+/** The Walmart marketplace sign-in, as the Connections list shows it. */
+const walmartSignIn = () => page().getByRole('list', { name: 'Connections' }).getByRole('listitem').filter({ hasText: 'Walmart sign-in' })
+
 const savedServers = () => JSON.parse(readFileSync(serversFile, 'utf8')) as { id: string; enabled: boolean; headers: Record<string, string> }[]
 
 test('a chat uses a tool from a server added in Puppy, and an unreachable one does not break it', async () => {
@@ -33,7 +36,7 @@ test('the MCP servers page lists them; one can be switched off and removed', asy
   await expect(page().getByRole('heading', { name: 'MCP servers', level: 1 })).toBeVisible()
   const yours = page().getByRole('list', { name: 'Your servers' })
   await expect(yours.getByRole('switch', { name: 'Local test server' })).toHaveAttribute('aria-checked', 'true')
-  await expect(page().getByRole('status').filter({ hasText: /Signed in\.|Not signed in/ })).toBeVisible(AGENT)
+  await expect(walmartSignIn()).toContainText(/Connected|Expires soon|Not connected/, AGENT)
 
   await page().getByRole('button', { name: 'Remove Unreachable server' }).click()
   await yours.getByRole('switch', { name: 'Local test server' }).click()
@@ -61,7 +64,7 @@ test('the Walmart marketplace can be searched, and a server added without saving
 // Needs the user's marketplace sign-in: PUPPY_LIVE_MARKETPLACE=1 npx playwright test e2e/mcp.spec.ts
 test('a real marketplace server answers in a chat, signed in with the user\'s token', async () => {
   test.skip(!process.env.PUPPY_LIVE_MARKETPLACE, 'needs a marketplace sign-in')
-  await expect(page().getByRole('status').filter({ hasText: 'Signed in.' })).toBeVisible(AGENT)
+  await expect(walmartSignIn()).toContainText(/Connected|Expires soon/, AGENT)
   await page().getByRole('button', { name: 'New chat' }).click()
   await sendAndWait(page(), 'Call the list_available_templates tool from the Accelerator MCP server, then tell me how many templates it listed, as a number only.')
   const log = page().getByRole('log', { name: 'Conversation' })

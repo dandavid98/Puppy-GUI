@@ -4,6 +4,7 @@ import { app, BrowserWindow, nativeTheme, powerMonitor, session, shell } from 'e
 import { AgentPool } from './acp/agentPool'
 import { PuppyAgent } from './acp/puppyAgent'
 import { AgentCatalog } from './agentCatalog'
+import { ConnectionService } from './connections'
 import { FolderStore } from './folders'
 import { KeychainCipher, keychainStore } from './keychainCipher'
 import { applyTheme, registerIpc } from './ipc'
@@ -110,6 +111,11 @@ void app.whenReady().then(() => {
     resolveUrl: resolveRedirects,
   })
 
+  const connections = new ConnectionService(join(data, 'connections.json'), {
+    walmart: () => mcp.signInDetails(),
+    githubKey: () => mcp.savedKey('github', 'GITHUB_TOKEN'),
+  })
+
   // One Code Puppy per project folder; chats and scratch sessions share the one started in the chat folder.
   const chatDir = join(data, 'chat-workspace')
   const agents = new AgentPool((folder) => new PuppyAgent(locateCodePuppy, folder, info.logPath, info.version, () => agentChosen), chatDir)
@@ -127,7 +133,7 @@ void app.whenReady().then(() => {
   const vpn = new VpnWatch()
   const updates = new UpdateWatch(() => updateAvailable({ appPath: app.getAppPath(), packaged: app.isPackaged }))
   registerIpc({ agents, workspace, organizer, settings, quota, vpn, updates, info, previewDir, window: () => mainWindow })
-  registerCatalogIpc({ catalog, mcp, agents, settings, push: (channel, payload) => mainWindow?.webContents.send(channel, payload) })
+  registerCatalogIpc({ catalog, mcp, connections, agents, settings, window: () => mainWindow, push: (channel, payload) => mainWindow?.webContents.send(channel, payload) })
   openWindow()
   mkdirSync(chatDir, { recursive: true }) // the home process starts in it
   void agents.home.context().catch(() => undefined) // warm up now; errors reach the UI via status events
