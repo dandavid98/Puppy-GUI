@@ -1,20 +1,9 @@
-import { execFile } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { existsSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
 import type { QuotaSnapshot } from '@shared/api'
+import { runPython, runScript, type Runner } from './codePuppyPython'
 
-const SENTINEL = 'PUPPY_QUOTA '
-
-/**
- * Runs inside code-puppy's own Python. Its fetch function already knows the
- * backend URL, the user's token and the corporate certificates, so Puppy never
- * has to read, store or send a credential. Output is one sentinel-prefixed JSON
- * line because importing code-puppy can print stray terminal escape codes first.
- */
+/** Runs inside code-puppy's own Python (see codePuppyPython): it fetches with the user's own token and certificates. */
 export const QUOTA_SCRIPT = `
-import json, sys
 out = {}
 try:
     from code_puppy.plugins.walmart_specific.token_quota_display import fetch_quota_status
@@ -28,7 +17,7 @@ if "--rates" in sys.argv:
         out["burn_rates"] = ModelConfigFetcher.model_burn_rates
     except Exception:
         pass
-print("${SENTINEL}" + json.dumps(out))
+emit(out)
 `
 
 interface RawOutput {
@@ -36,19 +25,13 @@ interface RawOutput {
   burnRates: Record<string, number> | null
 }
 
-/** Find our line among whatever else the interpreter printed. Never throws. */
-export function readScriptOutput(stdout: string): RawOutput {
-  const line = stdout.split('\n').findLast((candidate) => candidate.startsWith(SENTINEL))
-  if (!line) return { quota: null, burnRates: null }
-  try {
-    const parsed = JSON.parse(line.slice(SENTINEL.length)) as { quota?: unknown; burn_rates?: unknown }
-    const quota = parsed.quota && typeof parsed.quota === 'object' ? (parsed.quota as Record<string, unknown>) : null
-    const rates = parsed.burn_rates && typeof parsed.burn_rates === 'object' ? Object.entries(parsed.burn_rates as Record<string, unknown>) : []
-    const burnRates = Object.fromEntries(rates.filter(([, rate]) => typeof rate === 'number' && Number.isFinite(rate) && rate >= 0)) as Record<string, number>
-    return { quota, burnRates: rates.length ? burnRates : null }
-  } catch {
-    return { quota: null, burnRates: null }
-  }
+/** Make sense of what the script emitted. Never throws. */
+export function readQuotaOutput(emitted: unknown): RawOutput {
+  const parsed = (emitted && typeof emitted === 'object' ? emitted : {}) as { quota?: unknown; burn_rates?: unknown }
+  const quota = parsed.quota && typeof parsed.quota === 'object' ? (parsed.quota as Record<string, unknown>) : null
+  const rates = parsed.burn_rates && typeof parsed.burn_rates === 'object' ? Object.entries(parsed.burn_rates as Record<string, unknown>) : []
+  const burnRates = Object.fromEntries(rates.filter(([, rate]) => typeof rate === 'number' && Number.isFinite(rate) && rate >= 0)) as Record<string, number>
+  return { quota, burnRates: rates.length ? burnRates : null }
 }
 
 const count = (value: unknown): number => {
@@ -65,19 +48,6 @@ export function toSnapshot(raw: Record<string, unknown> | null, burnRates: Recor
   if (!standard.limit && !large.limit && !requests.limit) return null
   return { fetchedAt, standard, large, requests, resetsInSecs: count(raw.resets_in_secs), burnRates }
 }
-
-/** code-puppy's interpreter sits next to its launcher (…/bin/code-puppy and …/bin/python3). */
-export function pythonNextTo(codePuppyBinary: string): string | null {
-  const python = join(dirname(codePuppyBinary), 'python3')
-  return existsSync(python) ? python : null
-}
-
-export type Runner = (python: string, args: string[]) => Promise<string>
-
-export const runPython: Runner = (python, args) =>
-  new Promise((done, fail) => {
-    execFile(python, args, { timeout: 25_000, maxBuffer: 1_000_000, cwd: homedir() }, (error, stdout) => (error ? fail(error) : done(stdout)))
-  })
 
 const STALE_AFTER_MS = 30 * 60_000
 /** Let the server finish rolling its window over before we ask what the new one looks like. */
@@ -163,7 +133,7 @@ export class QuotaService extends EventEmitter<{ changed: [QuotaSnapshot | null]
     const python = this.python()
     if (!python) return this.publish(null)
     try {
-      const output = readScriptOutput(await this.run(python, ['-c', QUOTA_SCRIPT, ...(this.burnRates ? [] : ['--rates'])]))
+      const output = readQuotaOutput(await runScript(python, QUOTA_SCRIPT, this.burnRates ? [] : ['--rates'], this.run))
       this.burnRates ??= output.burnRates
       return this.publish(toSnapshot(output.quota, this.burnRates ?? {}, this.now()))
     } catch {

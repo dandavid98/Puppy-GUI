@@ -1,8 +1,12 @@
+import { execFile } from 'node:child_process'
+import { homedir } from 'node:os'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { pythonNextTo, readSentinel, SENTINEL, type Runner } from './codePuppyPython'
 import { locateCodePuppy } from './locateCodePuppy'
-import { pythonNextTo, QuotaService, readScriptOutput, runPython, toSnapshot, QUOTA_SCRIPT, type Runner } from './quota'
+import { QuotaService, readQuotaOutput, toSnapshot, QUOTA_SCRIPT } from './quota'
 
-const line = (payload: unknown) => `PUPPY_QUOTA ${JSON.stringify(payload)}`
+const line = (payload: unknown) => `${SENTINEL}${JSON.stringify(payload)}`
+const readScriptOutput = (stdout: string) => readQuotaOutput(readSentinel(stdout))
 const backend = {
   tokens_used: 42_481_805,
   token_limit: 57_368_982,
@@ -21,7 +25,7 @@ describe('readScriptOutput', () => {
 
   it('treats a missing, malformed or error result as nothing', () => {
     expect(readScriptOutput('')).toEqual({ quota: null, burnRates: null })
-    expect(readScriptOutput('PUPPY_QUOTA {oops')).toEqual({ quota: null, burnRates: null })
+    expect(readScriptOutput(`${SENTINEL}{oops`)).toEqual({ quota: null, burnRates: null })
     expect(readScriptOutput(line({ error: 'ModuleNotFoundError' }))).toEqual({ quota: null, burnRates: null })
     expect(readScriptOutput(line({ quota: null }))).toEqual({ quota: null, burnRates: null })
   })
@@ -258,21 +262,35 @@ describe('QuotaService: reads again at the user\'s own reset time', () => {
   })
 })
 
-describe('pythonNextTo', () => {
-  it('finds the interpreter beside the launcher, or nothing', () => {
-    expect(pythonNextTo('/nonexistent/bin/code-puppy')).toBeNull()
+describe('the quota script', () => {
+  it('runs code-puppy\'s startup doctor first: without it a Finder-launched app fails every certificate check', async () => {
+    let script = ''
+    const service = new QuotaService(() => 'py', async (_python, args) => {
+      script = args[1]
+      return line({ quota: backend, burn_rates: { opus: 1 } })
+    })
+    await service.refresh()
+    expect(script.indexOf('run_doctor(')).toBeGreaterThan(-1)
+    expect(script.indexOf('run_doctor(')).toBeLessThan(script.indexOf('fetch_quota_status'))
+    expect(QUOTA_SCRIPT).not.toMatch(/token\s*=|x-api-key/i) // we never handle the credential ourselves
   })
 })
 
 // Real network, real credentials: run with PUPPY_LIVE_QUOTA=1 npx vitest run src/main/quota.test.ts
 describe.skipIf(!process.env.PUPPY_LIVE_QUOTA)('against the real service', () => {
-  it('reads this machine\'s actual quota through code-puppy\'s own Python', async () => {
+  /** Exactly what an app opened from Finder gets: no shell profile, so no SSL_CERT_FILE, proxies or PATH. */
+  const asFinderLaunches: Runner = (python, args) =>
+    new Promise((done, fail) => {
+      const env = { HOME: homedir(), PATH: '/usr/bin:/bin:/usr/sbin:/sbin', USER: process.env.USER ?? '', TMPDIR: process.env.TMPDIR ?? '/tmp' }
+      execFile(python, args, { env, cwd: homedir(), timeout: 40_000, maxBuffer: 20_000_000 }, (error, stdout) => (error ? fail(error) : done(stdout)))
+    })
+
+  it('reads this machine\'s actual quota through code-puppy\'s own Python, launched the way Finder launches apps', async () => {
     const python = pythonNextTo(locateCodePuppy())
     expect(python).not.toBeNull()
-    const snapshot = await new QuotaService(() => python, runPython).refresh()
-    expect(snapshot).not.toBeNull()
+    const snapshot = await new QuotaService(() => python, asFinderLaunches).refresh()
+    expect(snapshot, 'quota unreadable without a shell environment').not.toBeNull()
     expect(snapshot!.standard.limit).toBeGreaterThan(0)
     expect(Object.keys(snapshot!.burnRates).length).toBeGreaterThan(5)
-    expect(QUOTA_SCRIPT).not.toMatch(/token\s*=|x-api-key/i) // we never handle the credential ourselves
-  }, 40_000)
+  }, 60_000)
 })

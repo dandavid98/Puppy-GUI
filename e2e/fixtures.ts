@@ -11,6 +11,17 @@ export const AGENT = { timeout: 180_000 }
 export const shot = (page: Page, name: string) => page.screenshot({ path: join('test-results', `${name}.png`) })
 
 /**
+ * The installed app is tested with the environment Finder gives it: no shell profile, so no SSL_CERT_FILE,
+ * proxies or PATH. (Inheriting ours once hid a bug where quota only worked when launched from a terminal.)
+ */
+const finderEnv = (): Record<string, string> => ({
+  HOME: process.env.HOME ?? '',
+  USER: process.env.USER ?? '',
+  TMPDIR: process.env.TMPDIR ?? '/tmp',
+  PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
+})
+
+/**
  * Launch the built app against a fresh, throwaway profile (so tests never see
  * real chats) and wait until code-puppy is connected. One app per spec file:
  * booting code-puppy is the slow part.
@@ -26,7 +37,7 @@ export function useApp(extraEnv: Record<string, string> = {}): { app: () => Elec
     app = await electron.launch({
       ...target,
       colorScheme: null, // Playwright pins "light" by default, which would mask the app's own theme switching
-      env: { ...process.env, PUPPY_DESKTOP_USER_DATA: mkdtempSync(join(tmpdir(), 'puppy-e2e-')), ...extraEnv },
+      env: { ...(process.env.PUPPY_APP ? finderEnv() : process.env), PUPPY_DESKTOP_USER_DATA: mkdtempSync(join(tmpdir(), 'puppy-e2e-')), ...extraEnv },
     })
     page = await app.firstWindow()
     await expect(page.getByText('Code Puppy is ready')).toBeVisible(AGENT)
