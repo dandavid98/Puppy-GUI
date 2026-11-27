@@ -19,6 +19,7 @@ import { Organizer } from './organizer'
 import { allowLocalFraming, handlePreviewProtocol, registerPreviewScheme } from './preview'
 import { pythonNextTo } from './codePuppyPython'
 import { QuotaService } from './quota'
+import { resolveRedirects } from './redirects'
 import { SessionIndex } from './sessionIndex'
 import { SettingsStore } from './settings'
 import { loginShellPath } from './shellPath'
@@ -106,6 +107,7 @@ void app.whenReady().then(() => {
     market: new CodePuppyMarketplace(python),
     catalog: new CodePuppyCatalog(python, npmRegistry()),
     vault: new McpVault(join(data, 'mcp-secrets.json'), new KeychainCipher(keychainStore(keychainService()))),
+    resolveUrl: resolveRedirects,
   })
 
   // One Code Puppy per project folder; chats and scratch sessions share the one started in the chat folder.

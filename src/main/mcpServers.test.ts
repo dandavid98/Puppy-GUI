@@ -165,6 +165,18 @@ describe('McpService: marketplace', () => {
     expect(JSON.stringify(service.state)).not.toContain(TOKEN)
   })
 
+  it('saves the address a server redirects to, since Code Puppy does not follow redirects', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'puppy-mcp-'))
+    const service = new McpService(join(dir, 'mcp-servers.json'), {
+      market: fakeMarket().market,
+      catalog: fakeCatalog().catalog,
+      vault: new McpVault(join(dir, 's.json'), cipher),
+      resolveUrl: async (url) => `${url}/`,
+    })
+    await service.add('a')
+    expect((await service.sessionServers())[0]).toMatchObject({ url: 'https://a.walmart.com/mcp/' })
+  })
+
   it('adds each server once, says so when the marketplace dropped it, and survives a restart', async () => {
     const { service, make } = setup()
     await service.add('a')

@@ -102,6 +102,8 @@ export interface McpSources {
   market: Marketplace
   catalog: Catalog
   vault: McpVault
+  /** Where a remote server really lives (see redirects.ts). */
+  resolveUrl?: (url: string) => Promise<string>
 }
 
 export class McpService extends EventEmitter<{ changed: [McpState] }> {
@@ -134,7 +136,8 @@ export class McpService extends EventEmitter<{ changed: [McpState] }> {
     if (!this.has(id)) {
       const config = await this.sources.market.config(id)
       if (!config) throw new Error('That server is no longer in the marketplace.')
-      const { id: _id, name, displayName, ...spec } = config
+      const { id: _id, name, displayName, ...listed } = config
+      const spec = this.sources.resolveUrl ? { ...listed, url: await this.sources.resolveUrl(listed.url) } : listed
       const variables = mentions(spec, TOKEN_VARIABLE) ? [TOKEN_VARIABLE] : []
       this.save([...this.servers, { id, name, displayName, source: 'marketplace', enabled: true, variables, ...spec }])
     }
