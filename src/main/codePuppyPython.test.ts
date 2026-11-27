@@ -20,11 +20,31 @@ describe('runScript', () => {
       seen = args
       return `${SENTINEL}{"ok":true}`
     }
-    expect(await runScript('py', 'emit({"ok": True})', ['--flag'], run)).toEqual({ ok: true })
+    expect(await runScript('py', 'emit({"ok": True})', { args: ['--flag'] }, run)).toEqual({ ok: true })
     expect(seen[0]).toBe('-c')
     expect(seen[1].startsWith(PRELUDE)).toBe(true)
     expect(seen[1].endsWith('emit({"ok": True})')).toBe(true)
     expect(seen[2]).toBe('--flag')
+  })
+
+  it('skips the network doctor for scripts that stay on this Mac, but can still emit', async () => {
+    let script = ''
+    const run: Runner = async (_python, args) => {
+      script = args[1]
+      return ''
+    }
+    await runScript('py', 'emit(1)', { network: false }, run)
+    expect(script).not.toContain('run_doctor')
+    expect(script).toContain('def emit')
+  })
+
+  it('passes a longer timeout through, for slow scripts such as signing in', async () => {
+    let timeout: number | undefined
+    await runScript('py', '', { timeoutMs: 200_000 }, async (_python, _args, timeoutMs) => {
+      timeout = timeoutMs
+      return ''
+    })
+    expect(timeout).toBe(200_000)
   })
 
   it('has the prelude fix the environment the way code-puppy itself does at startup', () => {

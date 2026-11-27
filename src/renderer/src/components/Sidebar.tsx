@@ -1,6 +1,7 @@
-import { CircleArrowUp, CodeXml, MessagesSquare, Moon, PanelLeftClose, PawPrint, Plus, Settings as SettingsIcon, Sun } from 'lucide-react'
+import { Bot, CircleArrowUp, CodeXml, MessagesSquare, Moon, PanelLeftClose, PawPrint, Plus, Settings as SettingsIcon, Sun } from 'lucide-react'
 import type { AgentStatus, ChatFolder, SessionSummary, ThemePreference, WorkspaceKind } from '@shared/api'
 import { useDarkMode } from '../lib/useDarkMode'
+import type { AppState } from '../state/store'
 import { ConversationList, type ConversationActions } from './ConversationList'
 
 interface Props {
@@ -9,7 +10,7 @@ interface Props {
   activeId: string | null
   mode: WorkspaceKind
   status: AgentStatus
-  settingsOpen: boolean
+  view: AppState['view']
   /** A newer Puppy is waiting: show the badge. */
   updateAvailable: boolean
   onUpdate: () => void
@@ -17,6 +18,7 @@ interface Props {
   actions: ConversationActions
   onTheme: (theme: ThemePreference) => void
   onSettings: () => void
+  onAgents: () => void
   onCollapse: () => void
 }
 
@@ -47,7 +49,9 @@ function NavItem({ active, icon: Icon, label, onClick }: { active: boolean; icon
 }
 
 export function Sidebar(props: Props) {
-  const { sessions, folders, activeId, mode, status, settingsOpen, updateAvailable, onUpdate, actions, onNew, onTheme, onSettings, onCollapse } = props
+  const { sessions, folders, activeId, mode, status, view, updateAvailable, onUpdate, actions, onNew, onTheme, onSettings, onAgents, onCollapse } = props
+  const inConversation = view === 'conversation'
+  const settingsOpen = view === 'settings'
   const dark = useDarkMode()
 
   return (
@@ -74,11 +78,12 @@ export function Sidebar(props: Props) {
           </span>
           {mode === 'chat' ? 'New chat' : 'New code session'}
         </button>
-        <NavItem active={!settingsOpen && mode === 'chat'} icon={MessagesSquare} label="Chat" onClick={() => onNew('chat')} />
-        <NavItem active={!settingsOpen && mode === 'code'} icon={CodeXml} label="Code" onClick={() => onNew('code')} />
+        <NavItem active={inConversation && mode === 'chat'} icon={MessagesSquare} label="Chat" onClick={() => onNew('chat')} />
+        <NavItem active={inConversation && mode === 'code'} icon={CodeXml} label="Code" onClick={() => onNew('code')} />
+        <NavItem active={view === 'agents'} icon={Bot} label="Agents" onClick={onAgents} />
       </div>
 
-      <ConversationList sessions={sessions} folders={folders} mode={mode} activeId={activeId} settingsOpen={settingsOpen} actions={actions} />
+      <ConversationList sessions={sessions} folders={folders} mode={mode} activeId={activeId} pageOpen={!inConversation} actions={actions} />
 
       <div className="flex items-center gap-1 border-t border-line py-2 pr-2 pl-4">
         <span role="status" className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted">

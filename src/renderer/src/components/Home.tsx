@@ -17,6 +17,8 @@ interface Props {
   onSend: (text: string, attachments: Attachment[]) => Promise<void>
   onChooseFolder: () => void
   onSelectFolder: (folder: string) => void
+  /** Text the box starts with ("Ask for this agent"). Give Home a new `key` to apply a new one. */
+  initialDraft?: string
 }
 
 const STARTERS = [
@@ -27,8 +29,8 @@ const STARTERS = [
 ]
 
 /** The empty state: greeting, a big composer, and quick starts. */
-export function Home({ mode, name, folder, recentFolders, modelPicker, contextMeter, commands, onSend, onChooseFolder, onSelectFolder }: Props) {
-  const [draft, setDraft] = useState('')
+export function Home({ mode, name, folder, recentFolders, modelPicker, contextMeter, commands, onSend, onChooseFolder, onSelectFolder, initialDraft = '' }: Props) {
+  const [draft, setDraft] = useState(initialDraft)
   const [sending, setSending] = useState(false)
   const isCode = mode === 'code'
 

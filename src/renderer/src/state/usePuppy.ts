@@ -212,6 +212,16 @@ export function usePuppy() {
       openInBrowser: (target: string) => guard(() => api.openInBrowser(target)),
       loadAppInfo: api.getAppInfo,
       revealLog: () => void api.revealLog(),
+      openAgents: go({ type: 'view', view: 'agents' }),
+      /** A new chat with `text` already in the box, ready to finish and send. */
+      ask: (text: string) => dispatch({ type: 'ask', text }),
+      // The Agents page shows its own errors, next to what failed, so these hand back plain promises.
+      listAgents: api.listAgents,
+      setDefaultAgent: async (name: string) => {
+        const list = await api.setDefaultAgent(name)
+        dispatch({ type: 'settings', settings: await api.getSettings() })
+        return list
+      },
     }
   }, [send, open, guard, activeId, refreshSessions, loadModels])
 

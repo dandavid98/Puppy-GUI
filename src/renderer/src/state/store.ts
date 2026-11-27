@@ -42,7 +42,9 @@ export interface AppState {
   modelContexts: Record<string, number>
   /** Set when the model list could not be fetched, so the UI can offer a retry. */
   modelError: boolean
-  view: 'conversation' | 'settings'
+  view: 'conversation' | 'settings' | 'agents'
+  /** Text to start a new conversation's message with (e.g. "Ask for this agent"); `id` tells repeats apart. */
+  draft: { text: string; id: number } | null
   /** Off the VPN, Code Puppy cannot reach its servers and turns just hang. */
   vpn: VpnStatus
   /** A newer Puppy is waiting (checked in the background). */
@@ -73,6 +75,8 @@ export type Action =
   | { type: 'modelContexts'; contexts: Record<string, number> }
   | { type: 'modelError'; failed: boolean }
   | { type: 'view'; view: AppState['view'] }
+  /** Start a new chat with this text already in the box. */
+  | { type: 'ask'; text: string }
   | { type: 'removed'; sessionId: string }
   | { type: 'permission'; prompt: PermissionPrompt }
   | { type: 'permissionAnswered'; requestId: string }
@@ -97,6 +101,7 @@ export const initialState: AppState = {
   modelContexts: {},
   modelError: false,
   view: 'conversation',
+  draft: null,
   vpn: 'unknown',
   updateAvailable: false,
   notice: null,
@@ -198,6 +203,7 @@ export function reducer(state: AppState, action: Action): AppState {
         threads: { ...state.threads, [session.sessionId]: thread },
         activeId: session.sessionId,
         view: 'conversation',
+        draft: null, // it was sent (or the user went elsewhere): a later new chat starts empty
         preview: null,
         mode: session.kind,
         folder: session.kind === 'code' ? session.cwd : state.folder,
@@ -216,7 +222,7 @@ export function reducer(state: AppState, action: Action): AppState {
       }
     }
     case 'mode':
-      return { ...state, mode: action.mode, activeId: null, view: 'conversation', preview: null }
+      return { ...state, mode: action.mode, activeId: null, view: 'conversation', preview: null, draft: null }
     case 'folder':
       return { ...state, folder: action.folder, mode: 'code', activeId: null, view: 'conversation', preview: null }
     case 'update': {
@@ -264,6 +270,8 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, modelError: action.failed }
     case 'view':
       return { ...state, view: action.view }
+    case 'ask':
+      return { ...state, mode: 'chat', activeId: null, view: 'conversation', preview: null, draft: { text: action.text, id: (state.draft?.id ?? 0) + 1 } }
     case 'removed': {
       const { [action.sessionId]: _gone, ...threads } = state.threads
       return {

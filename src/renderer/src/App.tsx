@@ -4,6 +4,7 @@ import { Home } from './components/Home'
 import { DEFAULT_CONTEXT_LENGTH } from '@shared/limits'
 import { PreviewContext } from './components/previewContext'
 import { PreviewPanel } from './components/PreviewPanel'
+import { AgentsView } from './components/AgentsView'
 import { ContextMeter } from './components/ContextMeter'
 import { ModelPicker } from './components/ModelPicker'
 import { SettingsView } from './components/SettingsView'
@@ -16,7 +17,7 @@ export function App() {
   const { state, actions } = usePuppy()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const inSettings = state.view === 'settings'
-  const thread = !inSettings && state.activeId ? state.threads[state.activeId] : null
+  const thread = state.view === 'conversation' && state.activeId ? state.threads[state.activeId] : null
   const summary = state.sessions.find((session) => session.sessionId === state.activeId)
   const firstMessage = thread?.items.find((item) => item.type === 'user')
   const title = summary?.title ?? (firstMessage && 'text' in firstMessage ? firstMessage.text : null)
@@ -56,6 +57,16 @@ export function App() {
   const contextMeter = <ContextMeter used={thread?.contextTokens ?? null} total={contextLength} model={state.model?.currentValue} />
 
   const main = () => {
+    if (state.view === 'agents') {
+      return (
+        <AgentsView
+          listAgents={actions.listAgents}
+          setDefaultAgent={actions.setDefaultAgent}
+          onAsk={actions.ask}
+          busy={Object.values(state.threads).some((open) => open.running)}
+        />
+      )
+    }
     if (inSettings && state.settings) {
       return (
         <SettingsView
@@ -92,6 +103,8 @@ export function App() {
     }
     return (
       <Home
+        key={state.draft?.id ?? 0} // a new "Ask for this agent" fills the box afresh
+        initialDraft={state.draft?.text}
         mode={state.mode}
         name={state.settings?.displayName ?? ''}
         folder={state.folder}
@@ -116,13 +129,14 @@ export function App() {
           activeId={state.activeId}
           mode={state.mode}
           status={state.status}
-          settingsOpen={inSettings}
+          view={state.view}
           updateAvailable={state.updateAvailable}
           onUpdate={() => void actions.updateNow()}
           onNew={actions.newConversation}
           actions={actions}
           onTheme={(theme) => void actions.updateSettings({ theme })}
           onSettings={actions.openSettings}
+          onAgents={actions.openAgents}
           onCollapse={() => setSidebarOpen(false)}
         />
       )}

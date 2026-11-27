@@ -28,6 +28,23 @@ export interface Settings {
   autoPreview: boolean
   /** Show Code Puppy's work as it happens, like the terminal does: thoughts, reasoning and every tool call, opened up. */
   thinkingMode: boolean
+  /** The agent new chats in Puppy use (null: Code Puppy's own default). Never changes the terminal's. */
+  defaultAgent: string | null
+}
+
+/** One of Code Puppy's agents. */
+export interface AgentInfo {
+  name: string
+  displayName: string
+  description: string
+  /** Made by the user (or downloaded from the agent marketplace), not built in. */
+  custom: boolean
+}
+
+export interface AgentList {
+  agents: AgentInfo[]
+  /** The agent new chats use. */
+  current: string
 }
 
 /** Whether Walmart's network (VPN or Eagle WiFi) is reachable. Code Puppy cannot work without it. */
@@ -173,6 +190,9 @@ export interface PuppyApi {
   refreshQuota(): Promise<QuotaSnapshot | null>
   /** Context window size (tokens) for each model Code Puppy knows. */
   getModelContexts(): Promise<Record<string, number>>
+  listAgents(): Promise<AgentList>
+  /** The agent new chats use, in Puppy only. Restarts Code Puppy, so a reply in progress stops. */
+  setDefaultAgent(name: string): Promise<AgentList>
   onStatus(listener: (status: AgentStatus) => void): Unsubscribe
   onSessionUpdate(listener: (notification: SessionNotification) => void): Unsubscribe
   onPermissionRequest(listener: (prompt: PermissionPrompt) => void): Unsubscribe
@@ -220,6 +240,8 @@ export const Invoke = {
   refreshQuota: 'quota:refresh',
   prepareFolder: 'folder:prepare',
   getModelContexts: 'model:contexts',
+  listAgents: 'agents:list',
+  setDefaultAgent: 'agents:set-default',
 } as const satisfies Partial<Record<keyof PuppyApi, string>>
 
 /** Push channels (main → renderer via webContents.send). */

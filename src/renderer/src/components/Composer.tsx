@@ -54,7 +54,10 @@ export function Composer(props: Props) {
   }, [value])
 
   useEffect(() => {
-    if (autoFocus) textarea.current?.focus()
+    const box = textarea.current
+    if (!autoFocus || !box) return
+    box.focus()
+    box.setSelectionRange(box.value.length, box.value.length) // after any text already there, e.g. "Use the QA agent to "
   }, [autoFocus])
 
   useEffect(() => {

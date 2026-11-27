@@ -3,7 +3,7 @@ import type { Attachment, OpenedSession, SessionSummary, Settings } from '@share
 import { describe, expect, it } from 'vitest'
 import { initialState, reducer, type Action, type AppState } from './store'
 
-const settings = (autoPreview: boolean): Settings => ({ theme: 'system', displayName: 'Dan', smartTitles: true, autoPreview, thinkingMode: false })
+const settings = (autoPreview: boolean): Settings => ({ theme: 'system', displayName: 'Dan', smartTitles: true, autoPreview, thinkingMode: false, defaultAgent: null })
 const session: OpenedSession = { sessionId: 's1', cwd: '/work/app', kind: 'code', configOptions: [] }
 
 const AT = '2026-11-25T10:00:00.000Z'
@@ -178,5 +178,17 @@ describe('the sidebar row of a conversation', () => {
     const state = run(initialState, { type: 'sessions', sessions: [summary('old', 'Old')] }, { type: 'sessions', sessions: [] })
     expect(state.sessions).toEqual([])
     expect(run(fresh(), send('first'), { type: 'removed', sessionId: 's1' }).sessions).toEqual([])
+  })
+})
+
+describe('asking for an agent', () => {
+  it('opens a new chat with the text in the box, from anywhere', () => {
+    const fromCode = run(initialState, { type: 'opened', session }, { type: 'view', view: 'agents' }, { type: 'ask', text: 'Ask the QA Kitten agent to ' })
+    expect(fromCode).toMatchObject({ mode: 'chat', activeId: null, view: 'conversation', draft: { text: 'Ask the QA Kitten agent to ', id: 1 } })
+  })
+
+  it('tells a repeat of the same request apart, so the box fills again', () => {
+    const twice = run(initialState, { type: 'ask', text: 'same' }, { type: 'ask', text: 'same' })
+    expect(twice.draft).toEqual({ text: 'same', id: 2 })
   })
 })

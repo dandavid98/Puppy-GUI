@@ -1,9 +1,10 @@
-import { useEffect, useState, type ReactNode, useId } from 'react'
+import { useEffect, useState } from 'react'
 import { FileText, Monitor, Moon, RotateCw, Sun, Download, type LucideIcon } from 'lucide-react'
 import type { AppInfo, QuotaSnapshot, Settings, ThemePreference, UpdateOutcome } from '@shared/api'
 import { prettyPath } from '../lib/format'
 import type { AppState } from '../state/store'
 import { ModelPicker } from './ModelPicker'
+import { BUTTON, Page, Section } from './ui/Page'
 import { Switch } from './ui/Switch'
 import { QuotaSettings } from './QuotaSettings'
 
@@ -36,17 +37,6 @@ const THEME_CARDS: { value: ThemePreference; label: string; icon: LucideIcon; pr
   { value: 'light', label: 'Light', icon: Sun, preview: 'bg-[#faf9f7]' },
   { value: 'dark', label: 'Dark', icon: Moon, preview: 'bg-[#1e1d1b]' },
 ]
-
-function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
-  const headingId = useId()
-  return (
-    <section aria-labelledby={headingId} className="rounded-2xl border border-line bg-surface p-5">
-      <h2 id={headingId} className="text-base font-semibold">{title}</h2>
-      {description && <p className="mt-1 text-sm text-muted">{description}</p>}
-      <div className="mt-4">{children}</div>
-    </section>
-  )
-}
 
 function ThemePicker({ value, onChange }: { value: ThemePreference; onChange: (theme: ThemePreference) => void }) {
   return (
@@ -98,10 +88,7 @@ export function SettingsView({ settings, model, quota, onRefreshQuota, modelErro
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto w-full max-w-2xl space-y-5 px-6 pt-2 pb-12">
-        <h1 className="font-serif text-3xl tracking-tight">Settings</h1>
-
+    <Page title="Settings">
         <Section title="Profile">
           <label className="block text-sm font-medium" htmlFor="display-name">
             What should Puppy call you?
@@ -186,22 +173,21 @@ export function SettingsView({ settings, model, quota, onRefreshQuota, modelErro
             </dd>
           </dl>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" onClick={onRevealLog} className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm hover:bg-raised">
+            <button type="button" onClick={onRevealLog} className={BUTTON}>
               <FileText size={14} aria-hidden />
               Show log file
             </button>
-            <button type="button" onClick={onRestartAgent} className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm hover:bg-raised">
+            <button type="button" onClick={onRestartAgent} className={BUTTON}>
               <RotateCw size={14} aria-hidden />
               Restart Code Puppy
             </button>
-            <button type="button" onClick={update} disabled={updating} className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm hover:bg-raised disabled:opacity-60">
+            <button type="button" onClick={update} disabled={updating} className={BUTTON}>
               <Download size={14} aria-hidden />
               {updating ? 'Checking...' : 'Update Puppy'}
             </button>
           </div>
           <p role="status" className="mt-3 text-sm text-muted empty:hidden">{updateNote}</p>
         </Section>
-      </div>
-    </div>
+    </Page>
   )
 }

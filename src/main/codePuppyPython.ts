@@ -4,8 +4,8 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 /**
- * Running small scripts inside code-puppy's own Python: quota, the agent catalog,
- * the MCP marketplace. Its modules already know the backend URLs, the user's token
+ * Running small scripts inside code-puppy's own Python: quota and the agent
+ * catalog. Its modules already know the backend URLs, the user's token
  * and the corporate certificates, so Puppy never reads, stores or sends a credential.
  */
 
@@ -18,18 +18,24 @@ export const SENTINEL = 'PUPPY_JSON '
  * public + Walmart certificate bundle. An app launched from Finder has none of
  * that in its environment, and without it every HTTPS call to the backend fails
  * certificate checks (which code-puppy's helpers report as a quiet "None").
- * The doctor never raises and writes only to the stream we give it.
+ * The doctor never raises and writes only to the stream we give it. It probes
+ * the network (about 2.5s), so scripts that stay on this Mac skip it.
  */
-export const PRELUDE = `
-import io, json, sys
+const DOCTOR = `
 try:
     from code_puppy.plugins.setup_doctor.runner import run_doctor
     run_doctor(stream=io.StringIO())
 except Exception:
     pass
+`
+
+const EMIT = `
+import io, json, sys
 def emit(value):
     print("${SENTINEL}" + json.dumps(value, default=str))
 `
+
+export const PRELUDE = EMIT + DOCTOR
 
 /** Find our JSON line and parse it; null when it is missing or garbled. Never throws. */
 export function readSentinel(stdout: string): unknown {
@@ -48,14 +54,22 @@ export function pythonNextTo(codePuppyBinary: string): string | null {
   return existsSync(python) ? python : null
 }
 
-export type Runner = (python: string, args: string[]) => Promise<string>
+export type Runner = (python: string, args: string[], timeoutMs?: number) => Promise<string>
 
-export const runPython: Runner = (python, args) =>
+export const runPython: Runner = (python, args, timeoutMs = 30_000) =>
   new Promise((done, fail) => {
-    execFile(python, args, { timeout: 30_000, maxBuffer: 20_000_000, cwd: homedir() }, (error, stdout) => (error ? fail(error) : done(stdout)))
+    execFile(python, args, { timeout: timeoutMs, maxBuffer: 20_000_000, cwd: homedir() }, (error, stdout) => (error ? fail(error) : done(stdout)))
   })
 
+export interface ScriptOptions {
+  args?: string[]
+  /** False for scripts that never leave this Mac: skips the network doctor. */
+  network?: boolean
+  timeoutMs?: number
+}
+
 /** Run `body` (which reports through `emit(...)`) after the prelude; resolves to what it emitted, or null. */
-export async function runScript(python: string, body: string, args: string[] = [], run: Runner = runPython): Promise<unknown> {
-  return readSentinel(await run(python, ['-c', PRELUDE + body, ...args]))
+export async function runScript(python: string, body: string, { args = [], network = true, timeoutMs }: ScriptOptions = {}, run: Runner = runPython): Promise<unknown> {
+  const prelude = network ? PRELUDE : EMIT
+  return readSentinel(await run(python, ['-c', prelude + body, ...args], timeoutMs))
 }

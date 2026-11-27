@@ -32,6 +32,8 @@ export class PuppyAgent extends EventEmitter<Events> implements Agent {
   private connection: ClientConnection | null = null
   private connecting: Promise<ClientContext> | null = null
   private current: AgentStatus = { state: 'starting' }
+  /** Bumped by stop(), so a boot still waiting on `beforeStart` knows not to go ahead. */
+  private generation = 0
   private readonly permissions = new PermissionBroker((prompt) => this.emit('permissionRequest', prompt))
 
   constructor(
@@ -40,6 +42,8 @@ export class PuppyAgent extends EventEmitter<Events> implements Agent {
     readonly folder: string,
     private readonly logPath: string,
     private readonly version: string,
+    /** Awaited before each start: e.g. choosing the agent, which Code Puppy reads once, as it starts. */
+    private readonly beforeStart: () => Promise<unknown> = async () => undefined,
   ) {
     super()
   }
@@ -65,6 +69,7 @@ export class PuppyAgent extends EventEmitter<Events> implements Agent {
 
   stop(): void {
     const child = this.child
+    this.generation++
     this.child = null
     this.connecting = null
     this.permissions.cancelAll()
@@ -83,6 +88,9 @@ export class PuppyAgent extends EventEmitter<Events> implements Agent {
 
   private async boot(): Promise<ClientContext> {
     this.setStatus({ state: 'starting' })
+    const generation = this.generation
+    await this.beforeStart().catch(() => undefined) // best effort: Code Puppy's own default is a fine fallback
+    if (generation !== this.generation) throw new Error('Code Puppy was stopped before it started.')
     const child = spawn(this.locateBinary(), ['--acp'], {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: this.folder,

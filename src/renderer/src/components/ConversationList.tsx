@@ -18,14 +18,15 @@ interface Props {
   folders: ChatFolder[]
   mode: WorkspaceKind
   activeId: string | null
-  settingsOpen: boolean
+  /** A page (Settings, Agents) is showing instead of a conversation: no row is current. */
+  pageOpen: boolean
   actions: ConversationActions
 }
 
 const HEADING = 'px-2.5 pb-1 text-xs font-medium text-muted'
 
 /** The sidebar's list: pinned conversations, then folders (pinned first), then the rest by day. */
-export function ConversationList({ sessions, folders, mode, activeId, settingsOpen, actions }: Props) {
+export function ConversationList({ sessions, folders, mode, activeId, pageOpen, actions }: Props) {
   const model = useMemo(() => organize(sessions, folders, mode), [sessions, folders, mode])
   const modeFolders = useMemo(() => folders.filter((folder) => folder.kind === mode), [folders, mode])
   /** Naming a new folder; `sessionId` is set when it came from a conversation's "Move to new folder". */
@@ -37,7 +38,7 @@ export function ConversationList({ sessions, folders, mode, activeId, settingsOp
     <SessionRow
       key={session.sessionId}
       session={session}
-      active={!settingsOpen && session.sessionId === activeId}
+      active={!pageOpen && session.sessionId === activeId}
       folders={modeFolders}
       onOpen={() => void actions.open(session)}
       onRename={(title) => actions.renameSession(session.sessionId, title)}

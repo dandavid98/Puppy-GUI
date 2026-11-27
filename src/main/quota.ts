@@ -133,7 +133,7 @@ export class QuotaService extends EventEmitter<{ changed: [QuotaSnapshot | null]
     const python = this.python()
     if (!python) return this.publish(null)
     try {
-      const output = readQuotaOutput(await runScript(python, QUOTA_SCRIPT, this.burnRates ? [] : ['--rates'], this.run))
+      const output = readQuotaOutput(await runScript(python, QUOTA_SCRIPT, { args: this.burnRates ? [] : ['--rates'] }, this.run))
       this.burnRates ??= output.burnRates
       return this.publish(toSnapshot(output.quota, this.burnRates ?? {}, this.now()))
     } catch {

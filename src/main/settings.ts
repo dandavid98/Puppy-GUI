@@ -3,6 +3,8 @@ import { THEMES, type Settings } from '@shared/api'
 import { readJson, writeJsonAtomic } from './jsonFile'
 
 const MAX_NAME = 40
+/** Code Puppy agent names: "code-puppy", "qa-kitten", "my_agent.v2". */
+const AGENT_NAME = /^[\w.-]{1,80}$/
 
 /** First name from the macOS account ("Doe, Jane" and "Jane Doe" both give "Jane"). */
 export function firstNameFrom(fullName: string): string {
@@ -28,6 +30,9 @@ export function mergeSettings(current: Settings, patch: Partial<Record<keyof Set
   if (typeof patch.smartTitles === 'boolean') next.smartTitles = patch.smartTitles
   if (typeof patch.autoPreview === 'boolean') next.autoPreview = patch.autoPreview
   if (typeof patch.thinkingMode === 'boolean') next.thinkingMode = patch.thinkingMode
+  if (patch.defaultAgent === null || (typeof patch.defaultAgent === 'string' && AGENT_NAME.test(patch.defaultAgent))) {
+    next.defaultAgent = patch.defaultAgent as string | null
+  }
   return next
 }
 
@@ -41,6 +46,7 @@ export class SettingsStore {
       smartTitles: true,
       autoPreview: true,
       thinkingMode: false, // opt-in: it is a lot to look at
+      defaultAgent: null,
     }
     this.current = mergeSettings(defaults, readJson(path, {}))
   }
