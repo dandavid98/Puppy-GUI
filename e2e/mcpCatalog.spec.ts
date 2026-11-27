@@ -75,7 +75,27 @@ test('a key is checked by starting the server, kept encrypted, never shown again
   expect(onDisk()).not.toContain('catalog:github')
 })
 
+test('the GitHub key reaches the server: GitHub rejects a made-up one', async () => {
+  await page().getByRole('button', { name: 'MCP servers' }).click()
+  await page().getByLabel('Search the catalog').fill('GitHub API')
+  await row('GitHub API').getByRole('button', { name: 'Add GitHub API' }).click()
+  const form = page().getByRole('form', { name: 'Settings for GitHub API' })
+  await form.getByLabel('GITHUB_TOKEN').fill(FAKE_KEY)
+  await form.getByRole('button', { name: 'Add GitHub API' }).click()
+  await expect(yours().getByRole('switch', { name: 'GitHub API' })).toBeVisible(AGENT)
+
+  await page().getByRole('button', { name: 'New chat' }).click()
+  await sendAndWait(page(), 'Use the search_repositories tool from the github MCP server with the query "puppy". If it fails, reply with the exact error message and nothing else.')
+  // Without the key reaching the server, GitHub would just answer a public search.
+  await expect(page().getByRole('log', { name: 'Conversation' }).locator('p', { hasText: /bad credentials/i }).first()).toBeVisible(AGENT)
+
+  await page().getByRole('button', { name: 'MCP servers' }).click()
+  await page().getByRole('button', { name: 'Remove GitHub API' }).click()
+  await expect(yours()).toHaveCount(0)
+})
+
 test('a server that needs nothing is added once it starts, and a new chat uses its tools', async () => {
+  await page().getByRole('button', { name: 'MCP servers' }).click()
   await page().getByLabel('Search the catalog').fill('Filesystem Access')
   await row('Filesystem Access').getByRole('button', { name: 'Add Filesystem Access' }).click()
   await expect(yours().getByRole('switch', { name: 'Filesystem Access' })).toBeVisible(AGENT)

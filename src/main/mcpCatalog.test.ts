@@ -49,6 +49,14 @@ describe('toTemplates', () => {
     expect(templates[1].entry.fields.map((field) => field.name)).toEqual(['db_path'])
   })
 
+  it('puts right the GitHub entry, whose package reads another variable than the one the catalog sets', () => {
+    const [github] = toTemplates([raw('github', { config: { command: 'npx', args: ['-y', 'server-github'], env: { GITHUB_TOKEN: '$GITHUB_TOKEN' } }, settings: [], keys: ['GITHUB_TOKEN'] })])
+    expect(github.spec).toMatchObject({ env: { GITHUB_TOKEN: '$GITHUB_TOKEN', GITHUB_PERSONAL_ACCESS_TOKEN: '$GITHUB_TOKEN' } })
+    expect(github.entry.fields.map((field) => field.name)).toEqual(['GITHUB_TOKEN']) // still one key to type
+    const [other] = toTemplates([raw('slack')])
+    expect(other.spec).toMatchObject({ env: { KEY: '$API_KEY' } })
+  })
+
   it('refuses output that is not a list', () => {
     expect(() => toTemplates(null)).toThrow(/catalog/)
   })

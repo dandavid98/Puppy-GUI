@@ -109,6 +109,17 @@ finally:
 /** The first start downloads the package: about ten seconds here, longer on a slow network. */
 const CHECK_SECONDS = 150
 
+/**
+ * Mistakes in Code Puppy's catalog, put right here. The GitHub entry hands the
+ * key over as GITHUB_TOKEN, but the package reads GITHUB_PERSONAL_ACCESS_TOKEN
+ * and so ran without it (and the start-up check cannot tell). Each fix adds an
+ * environment variable that points at the key the user types.
+ */
+const CORRECTIONS: Record<string, Record<string, string>> = {
+  github: { GITHUB_PERSONAL_ACCESS_TOKEN: '$GITHUB_TOKEN' },
+}
+
+const corrected = (id: string, spec: ServerSpec): ServerSpec => (spec.type === 'stdio' && CORRECTIONS[id] ? { ...spec, env: { ...spec.env, ...CORRECTIONS[id] } } : spec)
 function toFields(raw: Record<string, unknown>): McpField[] {
   const settings = (Array.isArray(raw.settings) ? raw.settings : []).map((setting: Record<string, unknown>) => ({
     name: text(setting.name),
@@ -142,7 +153,7 @@ export function toTemplates(emitted: unknown): CatalogTemplate[] {
         unavailable: missing.length ? `Needs ${missing.join(', ')}` : null,
         deprecated: raw.deprecated === true,
       }
-      return [{ entry, name: text(raw.name) || entry.id, spec }]
+      return [{ entry, name: text(raw.name) || entry.id, spec: corrected(entry.id, spec) }]
     })
     .sort((a, b) => a.entry.displayName.localeCompare(b.entry.displayName))
 }
