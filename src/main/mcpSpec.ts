@@ -34,6 +34,23 @@ export const strings = (value: unknown): string[] => (Array.isArray(value) ? val
 export const record = (value: unknown): Record<string, string> =>
   value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, String(item)])) : {}
 
+/**
+ * Mistakes in Code Puppy's catalog, put right here. The GitHub entry hands the
+ * key over as GITHUB_TOKEN, but the package reads GITHUB_PERSONAL_ACCESS_TOKEN
+ * and so ran without it (and the start-up check cannot tell). Each fix adds an
+ * environment variable that points at the key the user types. Applied when the
+ * catalog is read and again when saved servers are, so ones added before a fix
+ * get it too.
+ */
+const CATALOG_CORRECTIONS: Record<string, Record<string, string>> = {
+  github: { GITHUB_PERSONAL_ACCESS_TOKEN: '$GITHUB_TOKEN' },
+}
+
+export function correctCatalogSpec(catalogId: string, spec: ServerSpec): ServerSpec {
+  const fix = CATALOG_CORRECTIONS[catalogId]
+  return spec.type === 'stdio' && fix ? { ...spec, env: { ...spec.env, ...fix } } : spec
+}
+
 /** A spec from untrusted JSON (Code Puppy's output, or a hand-edited file): null unless it is complete and safe. */
 export function parseSpec(type: unknown, raw: Record<string, unknown>): ServerSpec | null {
   if (type === 'stdio') return text(raw.command) ? { type, command: text(raw.command), args: strings(raw.args), env: record(raw.env) } : null

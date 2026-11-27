@@ -68,7 +68,9 @@ export interface McpServerInfo {
 export type McpSource = 'marketplace' | 'catalog'
 
 /** A catalog server's id among the user's servers, kept apart from marketplace ids. */
-export const catalogServerId = (catalogId: string): string => `catalog:${catalogId}`
+const CATALOG_PREFIX = 'catalog:'
+export const catalogServerId = (catalogId: string): string => `${CATALOG_PREFIX}${catalogId}`
+export const catalogIdOf = (serverId: string): string => (serverId.startsWith(CATALOG_PREFIX) ? serverId.slice(CATALOG_PREFIX.length) : serverId)
 
 /** Something the user fills in when adding a catalog server: a setting (a database path) or a key (secret). */
 export interface McpField {

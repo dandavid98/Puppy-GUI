@@ -1,10 +1,10 @@
 import { EventEmitter } from 'node:events'
 import type { McpServer } from '@agentclientprotocol/sdk'
-import { catalogServerId, type McpCatalogEntry, type McpListing, type McpSource, type McpState } from '@shared/api'
+import { catalogIdOf, catalogServerId, type McpCatalogEntry, type McpListing, type McpSource, type McpState } from '@shared/api'
 import { readJson, writeJsonAtomic } from './jsonFile'
 import type { Catalog, CatalogTemplate } from './mcpCatalog'
 import type { Marketplace, MarketplaceToken } from './mcpMarketplace'
-import { mentions, packageMirrors, parseSpec, strings, TOKEN_VARIABLE, toAcpSpec, type ServerSpec } from './mcpSpec'
+import { correctCatalogSpec, mentions, packageMirrors, parseSpec, strings, TOKEN_VARIABLE, toAcpSpec, type ServerSpec } from './mcpSpec'
 import type { McpVault } from './mcpVault'
 
 /**
@@ -63,13 +63,15 @@ export function readServers(path: string): StoredMcpServer[] {
   if (!Array.isArray(saved)) return []
   return saved.flatMap((raw: Record<string, unknown>) => {
     if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || typeof raw.name !== 'string') return []
-    const spec = parseSpec(raw.type ?? 'http', raw)
-    if (!spec) return []
+    const parsed = parseSpec(raw.type ?? 'http', raw)
+    if (!parsed) return []
+    const source = raw.source === 'catalog' ? 'catalog' : 'marketplace'
+    const spec = source === 'catalog' ? correctCatalogSpec(catalogIdOf(raw.id), parsed) : parsed
     return [{
       id: raw.id,
       name: raw.name,
       displayName: typeof raw.displayName === 'string' && raw.displayName ? raw.displayName : raw.id,
-      source: raw.source === 'catalog' ? 'catalog' : 'marketplace',
+      source,
       enabled: raw.enabled !== false,
       variables: Array.isArray(raw.variables) ? strings(raw.variables) : mentions(spec, TOKEN_VARIABLE) ? [TOKEN_VARIABLE] : [],
       ...spec,

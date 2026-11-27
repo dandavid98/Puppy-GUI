@@ -266,6 +266,16 @@ describe('McpService: catalog', () => {
     expect(server).toHaveProperty('env', expect.arrayContaining([{ name: 'GITHUB_PERSONAL_ACCESS_TOKEN', value: KEY }]))
   })
 
+  it('puts right a GitHub server saved before the fix, so the key reaches the package', async () => {
+    const { make, paths, service } = setup()
+    await service.addFromCatalog('github', { GITHUB_TOKEN: KEY })
+    const saved = JSON.parse(readFileSync(paths.servers, 'utf8'))
+    saved[0].env = { GITHUB_TOKEN: '$GITHUB_TOKEN' } // as the first release saved it
+    writeFileSync(paths.servers, JSON.stringify(saved))
+    const [server] = await make().sessionServers()
+    expect(server).toHaveProperty('env', expect.arrayContaining([{ name: 'GITHUB_PERSONAL_ACCESS_TOKEN', value: KEY }]))
+  })
+
   it('does not add a server that fails to start, and says why', async () => {
     const { service, onDisk } = setup({ catalog: fakeCatalog('401 Bad credentials').catalog })
     await expect(service.addFromCatalog('github', { GITHUB_TOKEN: KEY })).rejects.toThrow('GITHUB did not start, so it was not added. 401 Bad credentials')
