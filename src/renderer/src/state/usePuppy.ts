@@ -56,6 +56,7 @@ export function usePuppy() {
       api.onQuota((quota) => dispatch({ type: 'quota', quota })),
       api.onVpnStatus((status) => dispatch({ type: 'vpn', status })),
       api.onUpdateAvailable((available) => dispatch({ type: 'updateAvailable', available })),
+      api.onMcpState((mcp) => dispatch({ type: 'mcp', state: mcp })),
     ]
     void api.getStatus().then((status) => dispatch({ type: 'status', status }))
     void api.getSettings().then((settings) => dispatch({ type: 'settings', settings }))
@@ -213,15 +214,25 @@ export function usePuppy() {
       loadAppInfo: api.getAppInfo,
       revealLog: () => void api.revealLog(),
       openAgents: go({ type: 'view', view: 'agents' }),
+      openMcp: () => {
+        dispatch({ type: 'view', view: 'mcp' })
+        void api.getMcpState().then((mcp) => dispatch({ type: 'mcp', state: mcp }), () => undefined)
+      },
       /** A new chat with `text` already in the box, ready to finish and send. */
       ask: (text: string) => dispatch({ type: 'ask', text }),
-      // The Agents page shows its own errors, next to what failed, so these hand back plain promises.
+      // The pages below show their own errors, next to what failed, so these hand back plain promises.
       listAgents: api.listAgents,
       setDefaultAgent: async (name: string) => {
         const list = await api.setDefaultAgent(name)
         dispatch({ type: 'settings', settings: await api.getSettings() })
         return list
       },
+      listMcpMarketplace: api.listMcpMarketplace,
+      // Changes to the server list arrive as an onMcpState push, so nothing here needs dispatching.
+      addMcpServer: api.addMcpServer,
+      removeMcpServer: api.removeMcpServer,
+      setMcpServerEnabled: api.setMcpServerEnabled,
+      signInToMcp: api.signInToMcp,
     }
   }, [send, open, guard, activeId, refreshSessions, loadModels])
 

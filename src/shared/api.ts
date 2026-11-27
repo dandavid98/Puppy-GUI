@@ -47,6 +47,29 @@ export interface AgentList {
   current: string
 }
 
+/** A server listed in Walmart's MCP marketplace. */
+export interface McpListing {
+  id: string
+  displayName: string
+  description: string
+  tags: string[]
+  author: string
+  verified: boolean
+}
+
+/** A server the user added. Puppy only: Code Puppy in the terminal never sees it. */
+export interface McpServerInfo {
+  id: string
+  displayName: string
+  enabled: boolean
+}
+
+export interface McpState {
+  servers: McpServerInfo[]
+  /** Signed in to the marketplace, which its servers need. Null until checked. */
+  signedIn: boolean | null
+}
+
 /** Whether Walmart's network (VPN or Eagle WiFi) is reachable. Code Puppy cannot work without it. */
 export type VpnStatus = 'unknown' | 'connected' | 'disconnected'
 
@@ -193,6 +216,15 @@ export interface PuppyApi {
   listAgents(): Promise<AgentList>
   /** The agent new chats use, in Puppy only. Restarts Code Puppy, so a reply in progress stops. */
   setDefaultAgent(name: string): Promise<AgentList>
+  getMcpState(): Promise<McpState>
+  listMcpMarketplace(): Promise<McpListing[]>
+  /** Added servers join new chats (and reopened ones). */
+  addMcpServer(id: string): Promise<McpState>
+  removeMcpServer(id: string): Promise<McpState>
+  setMcpServerEnabled(id: string, enabled: boolean): Promise<McpState>
+  /** Walmart SSO for the marketplace: opens Chrome, which closes again by itself if already signed in. */
+  signInToMcp(): Promise<McpState>
+  onMcpState(listener: (state: McpState) => void): Unsubscribe
   onStatus(listener: (status: AgentStatus) => void): Unsubscribe
   onSessionUpdate(listener: (notification: SessionNotification) => void): Unsubscribe
   onPermissionRequest(listener: (prompt: PermissionPrompt) => void): Unsubscribe
@@ -242,6 +274,12 @@ export const Invoke = {
   getModelContexts: 'model:contexts',
   listAgents: 'agents:list',
   setDefaultAgent: 'agents:set-default',
+  getMcpState: 'mcp:state',
+  listMcpMarketplace: 'mcp:marketplace',
+  addMcpServer: 'mcp:add',
+  removeMcpServer: 'mcp:remove',
+  setMcpServerEnabled: 'mcp:set-enabled',
+  signInToMcp: 'mcp:sign-in',
 } as const satisfies Partial<Record<keyof PuppyApi, string>>
 
 /** Push channels (main → renderer via webContents.send). */
@@ -253,4 +291,5 @@ export const Push = {
   quota: 'quota:changed',
   vpn: 'vpn:changed',
   updateAvailable: 'app:update-available-changed',
+  mcpState: 'mcp:state-changed',
 } as const

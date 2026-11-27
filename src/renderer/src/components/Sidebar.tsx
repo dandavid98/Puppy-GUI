@@ -1,4 +1,4 @@
-import { Bot, CircleArrowUp, CodeXml, MessagesSquare, Moon, PanelLeftClose, PawPrint, Plus, Settings as SettingsIcon, Sun } from 'lucide-react'
+import { Bot, CircleArrowUp, CodeXml, MessagesSquare, Moon, PanelLeftClose, PawPrint, Plug, Plus, Settings as SettingsIcon, Sun } from 'lucide-react'
 import type { AgentStatus, ChatFolder, SessionSummary, ThemePreference, WorkspaceKind } from '@shared/api'
 import { useDarkMode } from '../lib/useDarkMode'
 import type { AppState } from '../state/store'
@@ -19,6 +19,7 @@ interface Props {
   onTheme: (theme: ThemePreference) => void
   onSettings: () => void
   onAgents: () => void
+  onMcp: () => void
   onCollapse: () => void
 }
 
@@ -49,7 +50,7 @@ function NavItem({ active, icon: Icon, label, onClick }: { active: boolean; icon
 }
 
 export function Sidebar(props: Props) {
-  const { sessions, folders, activeId, mode, status, view, updateAvailable, onUpdate, actions, onNew, onTheme, onSettings, onAgents, onCollapse } = props
+  const { sessions, folders, activeId, mode, status, view, updateAvailable, onUpdate, actions, onNew, onTheme, onSettings, onAgents, onMcp, onCollapse } = props
   const inConversation = view === 'conversation'
   const settingsOpen = view === 'settings'
   const dark = useDarkMode()
@@ -81,6 +82,7 @@ export function Sidebar(props: Props) {
         <NavItem active={inConversation && mode === 'chat'} icon={MessagesSquare} label="Chat" onClick={() => onNew('chat')} />
         <NavItem active={inConversation && mode === 'code'} icon={CodeXml} label="Code" onClick={() => onNew('code')} />
         <NavItem active={view === 'agents'} icon={Bot} label="Agents" onClick={onAgents} />
+        <NavItem active={view === 'mcp'} icon={Plug} label="MCP servers" onClick={onMcp} />
       </div>
 
       <ConversationList sessions={sessions} folders={folders} mode={mode} activeId={activeId} pageOpen={!inConversation} actions={actions} />

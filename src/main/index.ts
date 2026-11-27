@@ -8,6 +8,8 @@ import { FolderStore } from './folders'
 import { applyTheme, registerIpc } from './ipc'
 import { registerCatalogIpc } from './ipcCatalog'
 import { locateCodePuppy } from './locateCodePuppy'
+import { CodePuppyMarketplace } from './mcpMarketplace'
+import { McpService } from './mcpServers'
 import { readContextLengths } from './modelCatalog'
 import { Organizer } from './organizer'
 import { allowLocalFraming, handlePreviewProtocol, registerPreviewScheme } from './preview'
@@ -83,19 +85,20 @@ void app.whenReady().then(() => {
   const info = { version: app.getVersion(), dataPath: data, logPath: join(data, 'code-puppy.log') }
   const settings = new SettingsStore(join(data, 'settings.json'))
   applyTheme(settings.get())
-  /** code-puppy's own Python: quota and the agent catalog both go through it. */
+  /** code-puppy's own Python: quota, agents and the MCP marketplace all go through it. */
   const python = () => pythonNextTo(locateCodePuppy())
 
   // The agent chosen in Puppy lasts only as long as Puppy's process, so it is chosen again before Code Puppy starts.
   const catalog = new AgentCatalog(python)
   const chosenAgent = settings.get().defaultAgent
   const agentChosen = chosenAgent ? catalog.use(chosenAgent) : Promise.resolve()
+  const mcp = new McpService(join(data, 'mcp-servers.json'), new CodePuppyMarketplace(python))
 
   // One Code Puppy per project folder; chats and scratch sessions share the one started in the chat folder.
   const chatDir = join(data, 'chat-workspace')
   const agents = new AgentPool((folder) => new PuppyAgent(locateCodePuppy, folder, info.logPath, info.version, () => agentChosen), chatDir)
   const index = new SessionIndex(join(data, 'sessions.json'))
-  const workspace = new Workspace(agents, index, settings, chatDir, () => readContextLengths())
+  const workspace = new Workspace(agents, index, settings, chatDir, () => readContextLengths(), () => mcp.sessionServers())
   const organizer = new Organizer(index, new FolderStore(join(data, 'folders.json')))
 
   // The user's real quota, read through code-puppy's own Python (never touching their token).
@@ -108,10 +111,11 @@ void app.whenReady().then(() => {
   const vpn = new VpnWatch()
   const updates = new UpdateWatch(() => updateAvailable({ appPath: app.getAppPath(), packaged: app.isPackaged }))
   registerIpc({ agents, workspace, organizer, settings, quota, vpn, updates, info, previewDir, window: () => mainWindow })
-  registerCatalogIpc({ catalog, agents, settings })
+  registerCatalogIpc({ catalog, mcp, agents, settings, push: (channel, payload) => mainWindow?.webContents.send(channel, payload) })
   openWindow()
   mkdirSync(chatDir, { recursive: true }) // the home process starts in it
   void agents.home.context().catch(() => undefined) // warm up now; errors reach the UI via status events
+  void mcp.sessionServers() // reads the marketplace sign-in now, so the first chat does not wait for it
   quota.start()
   void vpn.check() // so a launch off the VPN says so straight away
   updates.start() // and so a waiting update gets its badge

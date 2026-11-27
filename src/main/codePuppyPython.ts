@@ -4,8 +4,8 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 /**
- * Running small scripts inside code-puppy's own Python: quota and the agent
- * catalog. Its modules already know the backend URLs, the user's token
+ * Running small scripts inside code-puppy's own Python: quota, the agent catalog,
+ * the MCP marketplace. Its modules already know the backend URLs, the user's token
  * and the corporate certificates, so Puppy never reads, stores or sends a credential.
  */
 

@@ -1,17 +1,22 @@
 import { ipcMain } from 'electron'
-import { Invoke, type AgentList } from '@shared/api'
+import { Invoke, Push, type AgentList } from '@shared/api'
 import type { AgentPool } from './acp/agentPool'
 import type { AgentCatalog } from './agentCatalog'
+import type { McpService } from './mcpServers'
 import type { SettingsStore } from './settings'
 
 interface Deps {
   catalog: AgentCatalog
+  mcp: McpService
   agents: AgentPool
   settings: SettingsStore
+  push: (channel: string, payload?: unknown) => void
 }
 
-/** The Agents page. */
-export function registerCatalogIpc({ catalog, agents, settings }: Deps): void {
+/** The Agents and MCP servers pages. */
+export function registerCatalogIpc({ catalog, mcp, agents, settings, push }: Deps): void {
+  mcp.on('changed', (state) => push(Push.mcpState, state))
+
   ipcMain.handle(Invoke.listAgents, () => catalog.list())
   ipcMain.handle(Invoke.setDefaultAgent, async (_event, name): Promise<AgentList> => {
     const { agents: available } = await catalog.list()
@@ -21,4 +26,14 @@ export function registerCatalogIpc({ catalog, agents, settings }: Deps): void {
     await agents.restart() // each Code Puppy process reads the agent once, as it starts
     return { agents: available, current }
   })
+
+  ipcMain.handle(Invoke.getMcpState, () => {
+    void mcp.checkSignIn().catch(() => undefined) // arrives as a push
+    return mcp.state
+  })
+  ipcMain.handle(Invoke.listMcpMarketplace, () => mcp.marketplace())
+  ipcMain.handle(Invoke.addMcpServer, (_event, id) => mcp.add(String(id)))
+  ipcMain.handle(Invoke.removeMcpServer, (_event, id) => mcp.remove(String(id)))
+  ipcMain.handle(Invoke.setMcpServerEnabled, (_event, id, enabled) => mcp.setEnabled(String(id), enabled === true))
+  ipcMain.handle(Invoke.signInToMcp, () => mcp.signIn())
 }

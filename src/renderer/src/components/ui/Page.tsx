@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from 'react'
 
-/** A full-width page in the main area (Settings, Agents): serif title, then cards. */
+/** A full-width page in the main area (Settings, Agents, MCP servers): serif title, then cards. */
 export function Page({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">

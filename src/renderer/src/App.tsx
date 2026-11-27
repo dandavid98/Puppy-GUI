@@ -6,6 +6,7 @@ import { PreviewContext } from './components/previewContext'
 import { PreviewPanel } from './components/PreviewPanel'
 import { AgentsView } from './components/AgentsView'
 import { ContextMeter } from './components/ContextMeter'
+import { McpView } from './components/McpView'
 import { ModelPicker } from './components/ModelPicker'
 import { SettingsView } from './components/SettingsView'
 import { Sidebar } from './components/Sidebar'
@@ -64,6 +65,18 @@ export function App() {
           setDefaultAgent={actions.setDefaultAgent}
           onAsk={actions.ask}
           busy={Object.values(state.threads).some((open) => open.running)}
+        />
+      )
+    }
+    if (state.view === 'mcp') {
+      return (
+        <McpView
+          mcp={state.mcp}
+          listMarketplace={actions.listMcpMarketplace}
+          addServer={actions.addMcpServer}
+          removeServer={actions.removeMcpServer}
+          setServerEnabled={actions.setMcpServerEnabled}
+          signIn={actions.signInToMcp}
         />
       )
     }
@@ -137,6 +150,7 @@ export function App() {
           onTheme={(theme) => void actions.updateSettings({ theme })}
           onSettings={actions.openSettings}
           onAgents={actions.openAgents}
+          onMcp={actions.openMcp}
           onCollapse={() => setSidebarOpen(false)}
         />
       )}

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { mkdirSync, statSync } from 'node:fs'
-import type { ContentBlock, NewSessionResponse, PromptResponse, SessionConfigOption, SessionInfo, SessionNotification } from '@agentclientprotocol/sdk'
+import type { ContentBlock, McpServer, NewSessionResponse, PromptResponse, SessionConfigOption, SessionInfo, SessionNotification } from '@agentclientprotocol/sdk'
 import type { Attachment, OpenedSession, SessionSummary, TurnResult, WorkspaceKind } from '@shared/api'
 import { DEFAULT_CONTEXT_LENGTH } from '@shared/limits'
 import { cleanTitle, titleFrom, titlePrompt, titleSource } from '@shared/titles'
@@ -61,6 +61,8 @@ export class Workspace extends EventEmitter<{ changed: []; turn: [] }> {
     private readonly settings: SettingsStore,
     private readonly chatDir: string,
     private readonly contextLengths: () => Record<string, number>,
+    /** The user's MCP servers, for conversations (not for throwaway sessions such as titles). */
+    private readonly mcpServers: () => Promise<McpServer[]> = async () => [],
   ) {
     super()
   }
@@ -103,7 +105,7 @@ export class Workspace extends EventEmitter<{ changed: []; turn: [] }> {
     const cwd = kind === 'chat' ? this.chatDir : folder
     if (!cwd) throw new Error('Pick a project folder before starting a code session.')
     if (kind === 'code' && !isDirectory(cwd)) throw new Error(`That folder no longer exists: ${cwd}`)
-    const response = await this.newSession(cwd)
+    const response = await this.newSession(cwd, await this.mcpServers())
     this.roots.add(cwd)
     this.rememberModel(response.configOptions)
     this.index.create(response.sessionId, kind)
@@ -114,7 +116,7 @@ export class Workspace extends EventEmitter<{ changed: []; turn: [] }> {
   async load(sessionId: string, cwd: string): Promise<OpenedSession> {
     if (!isDirectory(cwd)) throw new Error(`That folder no longer exists: ${cwd}`)
     const context = await this.contextIn(cwd)
-    const response = await context.request('session/load', { sessionId, cwd, mcpServers: [] })
+    const response = await context.request('session/load', { sessionId, cwd, mcpServers: await this.mcpServers() })
     this.sessionFolders.set(sessionId, cwd)
     this.roots.add(cwd)
     this.rememberModel(response.configOptions)
@@ -226,10 +228,10 @@ export class Workspace extends EventEmitter<{ changed: []; turn: [] }> {
     this.sessionFolders.delete(sessionId)
   }
 
-  private async newSession(cwd: string): Promise<NewSessionResponse> {
+  private async newSession(cwd: string, mcpServers: McpServer[] = []): Promise<NewSessionResponse> {
     mkdirSync(cwd, { recursive: true })
     const context = await this.contextIn(cwd)
-    const response = await context.request('session/new', { cwd, mcpServers: [] })
+    const response = await context.request('session/new', { cwd, mcpServers })
     this.sessionFolders.set(response.sessionId, cwd)
     return response
   }

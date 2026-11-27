@@ -18,7 +18,7 @@ interface Props {
   folders: ChatFolder[]
   mode: WorkspaceKind
   activeId: string | null
-  /** A page (Settings, Agents) is showing instead of a conversation: no row is current. */
+  /** A page (Settings, Agents, MCP servers) is showing instead of a conversation: no row is current. */
   pageOpen: boolean
   actions: ConversationActions
 }

@@ -1,6 +1,6 @@
 import type { AvailableCommand, SessionConfigOption, SessionNotification } from '@agentclientprotocol/sdk'
 import type { PreviewTarget } from '@shared/preview'
-import type { AgentStatus, Attachment, ChatFolder, OpenedSession, PermissionPrompt, QuotaSnapshot, SessionSummary, Settings, VpnStatus, WorkspaceKind } from '@shared/api'
+import type { AgentStatus, Attachment, ChatFolder, McpState, OpenedSession, PermissionPrompt, QuotaSnapshot, SessionSummary, Settings, VpnStatus, WorkspaceKind } from '@shared/api'
 import { previewForCompletedCall, previewForReply, type AutoPreview } from './autoPreview'
 import { titleFrom, titleSource } from '@shared/titles'
 import { addError, addUserMessage, applyUpdate, type ThreadItem } from './thread'
@@ -42,9 +42,11 @@ export interface AppState {
   modelContexts: Record<string, number>
   /** Set when the model list could not be fetched, so the UI can offer a retry. */
   modelError: boolean
-  view: 'conversation' | 'settings' | 'agents'
+  view: 'conversation' | 'settings' | 'agents' | 'mcp'
   /** Text to start a new conversation's message with (e.g. "Ask for this agent"); `id` tells repeats apart. */
   draft: { text: string; id: number } | null
+  /** The user's MCP servers and marketplace sign-in; null until read. */
+  mcp: McpState | null
   /** Off the VPN, Code Puppy cannot reach its servers and turns just hang. */
   vpn: VpnStatus
   /** A newer Puppy is waiting (checked in the background). */
@@ -77,6 +79,7 @@ export type Action =
   | { type: 'view'; view: AppState['view'] }
   /** Start a new chat with this text already in the box. */
   | { type: 'ask'; text: string }
+  | { type: 'mcp'; state: McpState }
   | { type: 'removed'; sessionId: string }
   | { type: 'permission'; prompt: PermissionPrompt }
   | { type: 'permissionAnswered'; requestId: string }
@@ -102,6 +105,7 @@ export const initialState: AppState = {
   modelError: false,
   view: 'conversation',
   draft: null,
+  mcp: null,
   vpn: 'unknown',
   updateAvailable: false,
   notice: null,
@@ -272,6 +276,8 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, view: action.view }
     case 'ask':
       return { ...state, mode: 'chat', activeId: null, view: 'conversation', preview: null, draft: { text: action.text, id: (state.draft?.id ?? 0) + 1 } }
+    case 'mcp':
+      return { ...state, mcp: action.state }
     case 'removed': {
       const { [action.sessionId]: _gone, ...threads } = state.threads
       return {
