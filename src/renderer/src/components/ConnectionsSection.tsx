@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Plus, RefreshCw } from 'lucide-react'
-import type { ConnectionDraft, ConnectionInfo, McpState } from '@shared/api'
+import type { ConnectionDraft, ConnectionFileVariable, ConnectionInfo, McpState } from '@shared/api'
 import { readableError } from '../state/usePuppy'
 import { ConnectionForm } from './ConnectionForm'
 import { ConnectionRow } from './ConnectionRow'
@@ -13,6 +13,8 @@ interface Props {
   add: (draft: ConnectionDraft) => Promise<ConnectionInfo[]>
   remove: (id: string) => Promise<ConnectionInfo[]>
   chooseFile: () => Promise<string | null>
+  inspectFile: (file: string) => Promise<ConnectionFileVariable[]>
+  preview: (draft: ConnectionDraft) => Promise<ConnectionInfo | null>
   openRenewal: (id: string) => Promise<void>
   signIn: () => Promise<McpState>
 }
@@ -21,7 +23,7 @@ interface Props {
 const TICK_MS = 60_000
 
 /** What the user's logins and keys are, and when each ends. Read again whenever the window regains focus: a token is often renewed in another app. */
-export function ConnectionsSection({ signedIn, list, add, remove, chooseFile, openRenewal, signIn }: Props) {
+export function ConnectionsSection({ signedIn, list, add, remove, chooseFile, inspectFile, preview, openRenewal, signIn }: Props) {
   const [rows, setRows] = useState<ConnectionInfo[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now)
@@ -105,6 +107,8 @@ export function ConnectionsSection({ signedIn, list, add, remove, chooseFile, op
         <ConnectionForm
           add={add}
           chooseFile={chooseFile}
+          inspectFile={inspectFile}
+          preview={preview}
           onDone={() => {
             setAdding(false)
             load()

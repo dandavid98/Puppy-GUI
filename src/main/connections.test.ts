@@ -156,6 +156,40 @@ describe('ConnectionService: connections the user adds', () => {
   })
 })
 
+describe('ConnectionService: helping fill in the form', () => {
+  it('offers the names of a file\'s lines, marking login tokens that say when they end, and never a value', () => {
+    const { service, paths, env } = setup()
+    const token = jwt({ exp: Math.floor(NOW / 1000) + 3600 })
+    env(`# settings\nPW_BASE_URL="https://pw.example.com"\nPW_EMAIL=me@walmart.com\nPW_TOKEN="${token}"\nAPI_KEY=plain\n`)
+    const variables = service.inspectFile(paths.env)
+    expect(variables).toEqual([
+      { name: 'PW_BASE_URL', selfExpiring: false },
+      { name: 'PW_EMAIL', selfExpiring: false },
+      { name: 'PW_TOKEN', selfExpiring: true },
+      { name: 'API_KEY', selfExpiring: false },
+    ])
+    expect(JSON.stringify(variables)).not.toContain(token)
+  })
+
+  it('says why a file cannot be used', () => {
+    const { service, paths, env } = setup()
+    expect(() => service.inspectFile('relative/.env')).toThrow('The file needs its full path.')
+    expect(() => service.inspectFile(`${paths.env}.missing`)).toThrow('Puppy cannot read .env.local.missing.')
+    env('# only a comment\n')
+    expect(() => service.inspectFile(paths.env)).toThrow('There are no NAME=value lines in .env.local.')
+  })
+
+  it('previews how the connection would look without saving it, and says nothing while the draft is incomplete', async () => {
+    const { service, paths, env } = setup()
+    env(`PW_EMAIL=me@walmart.com\nPW_TOKEN=${jwt({ exp: Math.floor(NOW / 1000) + 3600 })}\n`)
+    const preview = service.preview(draft(paths.env, { name: '' }))
+    expect(preview).toMatchObject({ name: 'Connection', account: 'me@walmart.com', state: 'connected', expiresAt: NOW + 3_600_000 })
+    expect(service.preview(draft(paths.env, { tokenVariable: '' }))).toBeNull()
+    expect(service.preview(draft('relative/.env'))).toBeNull()
+    expect((await service.list()).map((row) => row.id)).toEqual(['walmart']) // nothing was saved
+  })
+})
+
 describe('ConnectionService: checking what the user typed', () => {
   const rejects = async (change: Partial<ConnectionDraft> | ((file: string) => Partial<ConnectionDraft>), message: string | RegExp, contents = 'PW_TOKEN=abc\n') => {
     const { service, paths, env } = setup()

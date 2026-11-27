@@ -83,6 +83,8 @@ export function App() {
           addConnection={actions.addConnection}
           removeConnection={actions.removeConnection}
           chooseConnectionFile={actions.chooseConnectionFile}
+          inspectConnectionFile={actions.inspectConnectionFile}
+          previewConnection={actions.previewConnection}
           openConnectionRenewal={actions.openConnectionRenewal}
         />
       )

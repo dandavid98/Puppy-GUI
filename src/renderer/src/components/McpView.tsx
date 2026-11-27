@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { BadgeCheck, Trash2 } from 'lucide-react'
-import { catalogServerId, type ConnectionDraft, type ConnectionInfo, type McpCatalogEntry, type McpListing, type McpState } from '@shared/api'
+import { catalogServerId, type ConnectionDraft, type ConnectionFileVariable, type ConnectionInfo, type McpCatalogEntry, type McpListing, type McpState } from '@shared/api'
 import { readableError } from '../state/usePuppy'
 import { ConnectionsSection } from './ConnectionsSection'
 import { McpCatalogItem } from './McpCatalogItem'
@@ -21,13 +21,15 @@ interface Props {
   addConnection: (draft: ConnectionDraft) => Promise<ConnectionInfo[]>
   removeConnection: (id: string) => Promise<ConnectionInfo[]>
   chooseConnectionFile: () => Promise<string | null>
+  inspectConnectionFile: (file: string) => Promise<ConnectionFileVariable[]>
+  previewConnection: (draft: ConnectionDraft) => Promise<ConnectionInfo | null>
   openConnectionRenewal: (id: string) => Promise<void>
 }
 
 const listingText = (listing: McpListing) => `${listing.displayName} ${listing.description} ${listing.author} ${listing.tags.join(' ')}`
 const entryText = (entry: McpCatalogEntry) => `${entry.displayName} ${entry.description} ${entry.category} ${entry.tags.join(' ')}`
 
-export function McpView({ mcp, listMarketplace, listCatalog, addServer, addCatalogServer, removeServer, setServerEnabled, signIn, listConnections, addConnection, removeConnection, chooseConnectionFile, openConnectionRenewal }: Props) {
+export function McpView({ mcp, listMarketplace, listCatalog, addServer, addCatalogServer, removeServer, setServerEnabled, signIn, listConnections, addConnection, removeConnection, chooseConnectionFile, inspectConnectionFile, previewConnection, openConnectionRenewal }: Props) {
   const [adding, setAdding] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -57,6 +59,8 @@ export function McpView({ mcp, listMarketplace, listCatalog, addServer, addCatal
         add={addConnection}
         remove={removeConnection}
         chooseFile={chooseConnectionFile}
+        inspectFile={inspectConnectionFile}
+        preview={previewConnection}
         openRenewal={openConnectionRenewal}
         signIn={signIn}
       />

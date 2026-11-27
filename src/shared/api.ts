@@ -124,6 +124,13 @@ export interface ConnectionInfo {
   renew: { steps: string; url: string | null; signIn: boolean } | null
 }
 
+/** A line of a token file, by name only: its value never leaves the main process. */
+export interface ConnectionFileVariable {
+  name: string
+  /** A login token that says when it ends (a JWT with an expiry). */
+  selfExpiring: boolean
+}
+
 /** How an added connection's token ends. */
 export type ConnectionExpiry = { kind: 'token' } | { kind: 'days'; days: number } | { kind: 'none' }
 
@@ -297,6 +304,10 @@ export interface PuppyApi {
   removeConnection(id: string): Promise<ConnectionInfo[]>
   /** A file picker that shows hidden files (a `.env.local`); null if cancelled. */
   chooseConnectionFile(): Promise<string | null>
+  /** The names of the lines in a token file (never their values), or why it cannot be used. */
+  inspectConnectionFile(file: string): Promise<ConnectionFileVariable[]>
+  /** How the connection would look if added now, so the user sees it before saving; null while the form is incomplete. */
+  previewConnection(draft: ConnectionDraft): Promise<ConnectionInfo | null>
   /** Opens the connection's renewal page in the browser. */
   openConnectionRenewal(id: string): Promise<void>
   listMcpCatalog(): Promise<McpCatalogEntry[]>
@@ -362,6 +373,8 @@ export const Invoke = {
   addConnection: 'connections:add',
   removeConnection: 'connections:remove',
   chooseConnectionFile: 'connections:choose-file',
+  inspectConnectionFile: 'connections:inspect-file',
+  previewConnection: 'connections:preview',
   openConnectionRenewal: 'connections:open-renewal',
   listMcpCatalog: 'mcp:catalog',
   addMcpCatalogServer: 'mcp:add-catalog',

@@ -239,6 +239,8 @@ export function usePuppy() {
       addConnection: api.addConnection,
       removeConnection: api.removeConnection,
       chooseConnectionFile: api.chooseConnectionFile,
+      inspectConnectionFile: api.inspectConnectionFile,
+      previewConnection: api.previewConnection,
       openConnectionRenewal: api.openConnectionRenewal,
     }
   }, [send, open, guard, activeId, refreshSessions, loadModels])

@@ -43,6 +43,8 @@ export function registerCatalogIpc({ catalog, mcp, connections, agents, settings
   ipcMain.handle(Invoke.listMcpCatalog, () => mcp.catalog())
 
   ipcMain.handle(Invoke.listConnections, () => connections.list())
+  ipcMain.handle(Invoke.inspectConnectionFile, (_event, file) => connections.inspectFile(String(file)))
+  ipcMain.handle(Invoke.previewConnection, (_event, draft) => connections.preview((draft ?? {}) as ConnectionDraft))
   ipcMain.handle(Invoke.addConnection, (_event, draft) => connections.add((draft ?? {}) as ConnectionDraft))
   ipcMain.handle(Invoke.removeConnection, (_event, id) => connections.remove(String(id)))
   ipcMain.handle(Invoke.openConnectionRenewal, async (_event, id) => {

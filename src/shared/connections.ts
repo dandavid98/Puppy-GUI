@@ -1,4 +1,18 @@
-import type { ConnectionInfo } from './api'
+import type { ConnectionFileVariable, ConnectionInfo } from './api'
+
+const TOKEN_NAME = /TOKEN|SECRET|PASSWORD|API_?KEY|JWT|CREDENTIAL/i
+const ACCOUNT_NAME = /EMAIL|USER(NAME)?|ACCOUNT|LOGIN/i
+
+/**
+ * Which line of a token file is the token, and which says whose it is, so the
+ * user mostly just confirms. A login token that names its own expiry wins; else
+ * the name decides (PW_TOKEN, API_KEY). Empty when nothing looks right.
+ */
+export function guessVariables(variables: ConnectionFileVariable[]): { token: string; account: string } {
+  const token = (variables.find((variable) => variable.selfExpiring) ?? variables.find((variable) => TOKEN_NAME.test(variable.name)))?.name ?? ''
+  const account = variables.find((variable) => variable.name !== token && ACCOUNT_NAME.test(variable.name))?.name ?? ''
+  return { token, account }
+}
 
 /** `soon` is the last day: time to renew before it stops working. */
 export type Health = 'ok' | 'soon' | 'expired' | 'off' | 'unknown'

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { readFileSync, statSync } from 'node:fs'
 import { basename, isAbsolute } from 'node:path'
-import type { ConnectionDraft, ConnectionExpiry, ConnectionInfo } from '@shared/api'
+import type { ConnectionDraft, ConnectionExpiry, ConnectionFileVariable, ConnectionInfo } from '@shared/api'
 import { parseEnv } from './envFile'
 import { checkGithubKey, type FetchLike } from './githubKey'
 import { readJson, writeJsonAtomic } from './jsonFile'
@@ -132,6 +132,25 @@ export class ConnectionService {
   async list(): Promise<ConnectionInfo[]> {
     const [walmart, github] = await Promise.all([this.walmartRow(), this.githubRow()])
     return [walmart, ...(github ? [github] : []), ...this.stored.map(describeStored)]
+  }
+
+  /** The names of the lines in a token file, for the form to offer: their values stay here. */
+  inspectFile(file: string): ConnectionFileVariable[] {
+    if (!isAbsolute(file)) throw new Error('The file needs its full path.')
+    const reading = readEnvFile(file)
+    if (!reading.ok) throw new Error(`Puppy cannot read ${basename(file)}.`)
+    const names = Object.keys(reading.values)
+    if (!names.length) throw new Error(`There are no NAME=value lines in ${basename(file)}.`)
+    return names.map((name) => ({ name, selfExpiring: !!readToken(reading.values[name])?.expiresAtMs }))
+  }
+
+  /** How the connection would look if added now; null while the draft is not complete or not valid. */
+  preview(draft: ConnectionDraft): ConnectionInfo | null {
+    try {
+      return describeStored({ id: 'preview', ...toStoredConnection({ ...draft, name: draft.name.trim() || 'Connection' }) })
+    } catch {
+      return null
+    }
   }
 
   async add(draft: ConnectionDraft): Promise<ConnectionInfo[]> {
