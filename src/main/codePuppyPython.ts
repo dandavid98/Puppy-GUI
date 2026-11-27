@@ -54,11 +54,13 @@ export function pythonNextTo(codePuppyBinary: string): string | null {
   return existsSync(python) ? python : null
 }
 
-export type Runner = (python: string, args: string[], timeoutMs?: number) => Promise<string>
+/** `input` goes to the script's stdin: for secrets, which must not appear in its arguments (visible to `ps`). */
+export type Runner = (python: string, args: string[], timeoutMs?: number, input?: string) => Promise<string>
 
-export const runPython: Runner = (python, args, timeoutMs = 30_000) =>
+export const runPython: Runner = (python, args, timeoutMs = 30_000, input) =>
   new Promise((done, fail) => {
-    execFile(python, args, { timeout: timeoutMs, maxBuffer: 20_000_000, cwd: homedir() }, (error, stdout) => (error ? fail(error) : done(stdout)))
+    const child = execFile(python, args, { timeout: timeoutMs, maxBuffer: 20_000_000, cwd: homedir() }, (error, stdout) => (error ? fail(error) : done(stdout)))
+    child.stdin?.end(input ?? '')
   })
 
 export interface ScriptOptions {
@@ -66,10 +68,11 @@ export interface ScriptOptions {
   /** False for scripts that never leave this Mac: skips the network doctor. */
   network?: boolean
   timeoutMs?: number
+  input?: string
 }
 
 /** Run `body` (which reports through `emit(...)`) after the prelude; resolves to what it emitted, or null. */
-export async function runScript(python: string, body: string, { args = [], network = true, timeoutMs }: ScriptOptions = {}, run: Runner = runPython): Promise<unknown> {
+export async function runScript(python: string, body: string, { args = [], network = true, timeoutMs, input }: ScriptOptions = {}, run: Runner = runPython): Promise<unknown> {
   const prelude = network ? PRELUDE : EMIT
-  return readSentinel(await run(python, ['-c', prelude + body, ...args], timeoutMs))
+  return readSentinel(await run(python, ['-c', prelude + body, ...args], timeoutMs, input))
 }

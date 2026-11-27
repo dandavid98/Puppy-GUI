@@ -36,4 +36,8 @@ export function registerCatalogIpc({ catalog, mcp, agents, settings, push }: Dep
   ipcMain.handle(Invoke.removeMcpServer, (_event, id) => mcp.remove(String(id)))
   ipcMain.handle(Invoke.setMcpServerEnabled, (_event, id, enabled) => mcp.setEnabled(String(id), enabled === true))
   ipcMain.handle(Invoke.signInToMcp, () => mcp.signIn())
+  ipcMain.handle(Invoke.listMcpCatalog, () => mcp.catalog())
+  ipcMain.handle(Invoke.addMcpCatalogServer, (_event, id, values) =>
+    mcp.addFromCatalog(String(id), values && typeof values === 'object' ? (values as Record<string, unknown>) : {}),
+  )
 }

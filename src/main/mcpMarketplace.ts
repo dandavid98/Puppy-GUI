@@ -1,6 +1,6 @@
 import type { McpListing } from '@shared/api'
 import { runPython, runScript, type Runner } from './codePuppyPython'
-import { allowedUrl } from './mcpServers'
+import { allowedUrl } from './mcpSpec'
 
 /**
  * Walmart's MCP marketplace, through code-puppy's own plugin: its catalog

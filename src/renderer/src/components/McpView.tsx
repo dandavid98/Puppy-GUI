@@ -1,24 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BadgeCheck, Check, LogIn, Plus, RotateCw, Search, Trash2 } from 'lucide-react'
-import type { McpListing, McpState } from '@shared/api'
+import { useCallback, useMemo, useState } from 'react'
+import { BadgeCheck, LogIn, Trash2 } from 'lucide-react'
+import { catalogServerId, type McpCatalogEntry, type McpListing, type McpState } from '@shared/api'
 import { readableError } from '../state/usePuppy'
-import { BUTTON, Page, SEARCH_INPUT, Section } from './ui/Page'
+import { McpCatalogItem } from './McpCatalogItem'
+import { AddControl, McpSearchList } from './McpSearchList'
+import { BUTTON, Page, Section } from './ui/Page'
 import { Switch } from './ui/Switch'
 
 interface Props {
   mcp: McpState | null
   listMarketplace: () => Promise<McpListing[]>
+  listCatalog: () => Promise<McpCatalogEntry[]>
   addServer: (id: string) => Promise<McpState>
+  addCatalogServer: (id: string, values: Record<string, string>) => Promise<McpState>
   removeServer: (id: string) => Promise<McpState>
   setServerEnabled: (id: string, enabled: boolean) => Promise<McpState>
   signIn: () => Promise<McpState>
 }
 
-/** Enough to scan; searching narrows the rest. */
-const SHOWN = 40
-
-const matches = (listing: McpListing, query: string) =>
-  `${listing.displayName} ${listing.description} ${listing.author} ${listing.tags.join(' ')}`.toLowerCase().includes(query.trim().toLowerCase())
+const listingText = (listing: McpListing) => `${listing.displayName} ${listing.description} ${listing.author} ${listing.tags.join(' ')}`
+const entryText = (entry: McpCatalogEntry) => `${entry.displayName} ${entry.description} ${entry.category} ${entry.tags.join(' ')}`
 
 function SignIn({ signedIn, onSignIn }: { signedIn: boolean | null | undefined; onSignIn: () => Promise<McpState> }) {
   const [waiting, setWaiting] = useState(false)
@@ -52,21 +53,14 @@ function SignIn({ signedIn, onSignIn }: { signedIn: boolean | null | undefined; 
   )
 }
 
-export function McpView({ mcp, listMarketplace, addServer, removeServer, setServerEnabled, signIn }: Props) {
-  const [listings, setListings] = useState<McpListing[] | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
+export function McpView({ mcp, listMarketplace, listCatalog, addServer, addCatalogServer, removeServer, setServerEnabled, signIn }: Props) {
   const [adding, setAdding] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(() => {
-    setLoadError(null)
-    listMarketplace().then(setListings, (failure: unknown) => setLoadError(readableError(failure)))
-  }, [listMarketplace])
-  useEffect(load, [load])
-
   const added = useMemo(() => new Set(mcp?.servers.map((server) => server.id)), [mcp])
-  const found = useMemo(() => listings?.filter((listing) => matches(listing, query)) ?? [], [listings, query])
+  // The ones that can run on this Mac first.
+  const loadCatalog = useCallback(async () => (await listCatalog()).sort((a, b) => Number(!!a.unavailable) - Number(!!b.unavailable)), [listCatalog])
 
   const attempt = (work: () => Promise<unknown>) => {
     setError(null)
@@ -76,11 +70,12 @@ export function McpView({ mcp, listMarketplace, addServer, removeServer, setServ
     setAdding(id)
     void attempt(() => addServer(id)).finally(() => setAdding(null))
   }
+  const busy = adding !== null || checking
 
   return (
     <Page
       title="MCP servers"
-      description="Give Code Puppy more tools from Walmart's MCP marketplace. Servers you add here are Puppy's only: Code Puppy in the terminal does not see them. They join new chats, and chats you reopen."
+      description="Give Code Puppy more tools, from Walmart's MCP marketplace or Code Puppy's own catalog. Servers you add here are Puppy's only: Code Puppy in the terminal does not see them. They join new chats, and chats you reopen."
     >
       <SignIn signedIn={mcp?.signedIn} onSignIn={signIn} />
       {error && <p role="alert" className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger">{error}</p>}
@@ -100,58 +95,57 @@ export function McpView({ mcp, listMarketplace, addServer, removeServer, setServ
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted">None yet. Add one from the marketplace below.</p>
+          <p className="text-sm text-muted">None yet. Add one from the marketplace or the catalog below.</p>
         )}
       </Section>
 
-      <Section title="Walmart MCP marketplace" description={listings ? `${listings.length} servers. Each adds its tools to Code Puppy.` : undefined}>
-        {loadError ? (
-          <div>
-            <p className="text-sm text-danger">Could not read the marketplace: {loadError}</p>
-            <button type="button" onClick={load} className={`${BUTTON} mt-3`}>
-              <RotateCw size={14} aria-hidden />
-              Try again
-            </button>
-          </div>
-        ) : !listings ? (
-          <p role="status" className="text-sm text-muted">Loading the marketplace...</p>
-        ) : (
-          <>
-            <div className="relative">
-              <Search size={15} aria-hidden className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
-              <input type="search" aria-label="Search the marketplace" placeholder="Search by name, team or tag" value={query} onChange={(event) => setQuery(event.target.value)} className={SEARCH_INPUT} />
-            </div>
-            <ul aria-label="Marketplace servers" className="mt-3 divide-y divide-line">
-              {found.slice(0, SHOWN).map((listing) => (
-                <li key={listing.id} className="flex items-start gap-3 py-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <h3 className="text-sm font-medium">{listing.displayName}</h3>
-                      {listing.verified && <BadgeCheck size={14} className="text-accent" aria-label="Verified" />}
-                    </div>
-                    {listing.author && <p className="text-xs text-muted">{listing.author}</p>}
-                    <p className="mt-1 line-clamp-2 text-sm text-muted">{listing.description}</p>
-                  </div>
-                  {added.has(listing.id) ? (
-                    <span className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-muted">
-                      <Check size={14} aria-hidden />
-                      Added
-                    </span>
-                  ) : (
-                    <button type="button" onClick={() => add(listing.id)} disabled={adding !== null} aria-label={`Add ${listing.displayName}`} className={BUTTON}>
-                      <Plus size={14} aria-hidden />
-                      {adding === listing.id ? 'Adding...' : 'Add'}
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-2 text-xs text-muted">
-              {found.length > SHOWN ? `Showing ${SHOWN} of ${found.length}. Search to find others.` : found.length ? null : `Nothing matches "${query}".`}
-            </p>
-          </>
+      <McpSearchList
+        title="Code Puppy catalog"
+        what="Code Puppy's catalog"
+        load={loadCatalog}
+        describe={(entries) => `${entries.length} servers. Ones whose package no longer exists are left out, and ones this Mac cannot run say what they need.`}
+        searchLabel="Search the catalog"
+        placeholder="Search by name, category or tag"
+        listLabel="Catalog servers"
+        searchText={entryText}
+        keyOf={(entry) => entry.id}
+      >
+        {(entry) => (
+          <McpCatalogItem
+            entry={entry}
+            added={added.has(catalogServerId(entry.id))}
+            locked={busy}
+            onAdd={(values) => addCatalogServer(entry.id, values)}
+            onBusy={setChecking}
+          />
         )}
-      </Section>
+      </McpSearchList>
+
+      <McpSearchList
+        title="Walmart MCP marketplace"
+        what="the marketplace"
+        load={listMarketplace}
+        describe={(listings) => `${listings.length} servers. Each adds its tools to Code Puppy.`}
+        searchLabel="Search the marketplace"
+        placeholder="Search by name, team or tag"
+        listLabel="Marketplace servers"
+        searchText={listingText}
+        keyOf={(listing) => listing.id}
+      >
+        {(listing) => (
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h3 className="text-sm font-medium">{listing.displayName}</h3>
+                {listing.verified && <BadgeCheck size={14} className="text-accent" aria-label="Verified" />}
+              </div>
+              {listing.author && <p className="text-xs text-muted">{listing.author}</p>}
+              <p className="mt-1 line-clamp-2 text-sm text-muted">{listing.description}</p>
+            </div>
+            <AddControl name={listing.displayName} added={added.has(listing.id)} busy={adding === listing.id} disabled={busy} onAdd={() => add(listing.id)} />
+          </div>
+        )}
+      </McpSearchList>
     </Page>
   )
 }

@@ -73,7 +73,9 @@ export function App() {
         <McpView
           mcp={state.mcp}
           listMarketplace={actions.listMcpMarketplace}
+          listCatalog={actions.listMcpCatalog}
           addServer={actions.addMcpServer}
+          addCatalogServer={actions.addMcpCatalogServer}
           removeServer={actions.removeMcpServer}
           setServerEnabled={actions.setMcpServerEnabled}
           signIn={actions.signInToMcp}

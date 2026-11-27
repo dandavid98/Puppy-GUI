@@ -228,8 +228,10 @@ export function usePuppy() {
         return list
       },
       listMcpMarketplace: api.listMcpMarketplace,
+      listMcpCatalog: api.listMcpCatalog,
       // Changes to the server list arrive as an onMcpState push, so nothing here needs dispatching.
       addMcpServer: api.addMcpServer,
+      addMcpCatalogServer: api.addMcpCatalogServer,
       removeMcpServer: api.removeMcpServer,
       setMcpServerEnabled: api.setMcpServerEnabled,
       signInToMcp: api.signInToMcp,

@@ -1,15 +1,19 @@
 import { existsSync, mkdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { app, BrowserWindow, nativeTheme, powerMonitor, session, shell } from 'electron'
 import { AgentPool } from './acp/agentPool'
 import { PuppyAgent } from './acp/puppyAgent'
 import { AgentCatalog } from './agentCatalog'
 import { FolderStore } from './folders'
+import { KeychainCipher, keychainStore } from './keychainCipher'
 import { applyTheme, registerIpc } from './ipc'
 import { registerCatalogIpc } from './ipcCatalog'
 import { locateCodePuppy } from './locateCodePuppy'
+import { CodePuppyCatalog } from './mcpCatalog'
 import { CodePuppyMarketplace } from './mcpMarketplace'
 import { McpService } from './mcpServers'
+import { npmRegistry } from './mcpSpec'
+import { McpVault } from './mcpVault'
 import { readContextLengths } from './modelCatalog'
 import { Organizer } from './organizer'
 import { allowLocalFraming, handlePreviewProtocol, registerPreviewScheme } from './preview'
@@ -17,6 +21,7 @@ import { pythonNextTo } from './codePuppyPython'
 import { QuotaService } from './quota'
 import { SessionIndex } from './sessionIndex'
 import { SettingsStore } from './settings'
+import { loginShellPath } from './shellPath'
 import { updateAvailable } from './updater'
 import { UpdateWatch } from './updateWatch'
 import { VpnWatch } from './vpn'
@@ -27,6 +32,9 @@ const ICON_PNG = join(__dirname, '../../build/icon.png')
 
 // Lets E2E tests run against a throwaway profile instead of real chats.
 if (process.env.PUPPY_DESKTOP_USER_DATA) app.setPath('userData', process.env.PUPPY_DESKTOP_USER_DATA)
+
+/** The Keychain item holding the key to MCP servers' saved keys. A test profile gets its own, so it never touches the real one. */
+const keychainService = () => (process.env.PUPPY_DESKTOP_USER_DATA ? `Puppy MCP keys (${basename(process.env.PUPPY_DESKTOP_USER_DATA)})` : 'Puppy MCP keys')
 registerPreviewScheme() // must happen before the app is ready
 
 function createWindow(): BrowserWindow {
@@ -81,6 +89,8 @@ app.on('second-instance', () => {
 
 void app.whenReady().then(() => {
   if (!isFirstInstance) return
+  // Before anything starts: Code Puppy, its shell commands and the MCP servers it runs need the Terminal's PATH, not Finder's.
+  process.env.PATH = loginShellPath()
   const data = app.getPath('userData')
   const info = { version: app.getVersion(), dataPath: data, logPath: join(data, 'code-puppy.log') }
   const settings = new SettingsStore(join(data, 'settings.json'))
@@ -92,7 +102,11 @@ void app.whenReady().then(() => {
   const catalog = new AgentCatalog(python)
   const chosenAgent = settings.get().defaultAgent
   const agentChosen = chosenAgent ? catalog.use(chosenAgent) : Promise.resolve()
-  const mcp = new McpService(join(data, 'mcp-servers.json'), new CodePuppyMarketplace(python))
+  const mcp = new McpService(join(data, 'mcp-servers.json'), {
+    market: new CodePuppyMarketplace(python),
+    catalog: new CodePuppyCatalog(python, npmRegistry()),
+    vault: new McpVault(join(data, 'mcp-secrets.json'), new KeychainCipher(keychainStore(keychainService()))),
+  })
 
   // One Code Puppy per project folder; chats and scratch sessions share the one started in the chat folder.
   const chatDir = join(data, 'chat-workspace')

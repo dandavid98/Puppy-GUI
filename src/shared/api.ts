@@ -62,6 +62,38 @@ export interface McpServerInfo {
   id: string
   displayName: string
   enabled: boolean
+  source: McpSource
+}
+
+export type McpSource = 'marketplace' | 'catalog'
+
+/** A catalog server's id among the user's servers, kept apart from marketplace ids. */
+export const catalogServerId = (catalogId: string): string => `catalog:${catalogId}`
+
+/** Something the user fills in when adding a catalog server: a setting (a database path) or a key (secret). */
+export interface McpField {
+  name: string
+  label: string
+  /** Used when left empty. */
+  default: string
+  required: boolean
+  /** An API key or token: typed into a password box, kept encrypted, never shown again. */
+  secret: boolean
+}
+
+/** A server in Code Puppy's own catalog. Ones whose package no longer exists are left out. */
+export interface McpCatalogEntry {
+  id: string
+  displayName: string
+  description: string
+  category: string
+  tags: string[]
+  verified: boolean
+  fields: McpField[]
+  /** Why it cannot run on this Mac (e.g. "Needs docker"), or null. */
+  unavailable: string | null
+  /** Its authors no longer maintain it, though it still runs. */
+  deprecated: boolean
 }
 
 export interface McpState {
@@ -224,6 +256,9 @@ export interface PuppyApi {
   setMcpServerEnabled(id: string, enabled: boolean): Promise<McpState>
   /** Walmart SSO for the marketplace: opens Chrome, which closes again by itself if already signed in. */
   signInToMcp(): Promise<McpState>
+  listMcpCatalog(): Promise<McpCatalogEntry[]>
+  /** Starts the server once to check it works (and to download it), then adds it. `values` go one way: never back to the window. */
+  addMcpCatalogServer(id: string, values: Record<string, string>): Promise<McpState>
   onMcpState(listener: (state: McpState) => void): Unsubscribe
   onStatus(listener: (status: AgentStatus) => void): Unsubscribe
   onSessionUpdate(listener: (notification: SessionNotification) => void): Unsubscribe
@@ -280,6 +315,8 @@ export const Invoke = {
   removeMcpServer: 'mcp:remove',
   setMcpServerEnabled: 'mcp:set-enabled',
   signInToMcp: 'mcp:sign-in',
+  listMcpCatalog: 'mcp:catalog',
+  addMcpCatalogServer: 'mcp:add-catalog',
 } as const satisfies Partial<Record<keyof PuppyApi, string>>
 
 /** Push channels (main → renderer via webContents.send). */

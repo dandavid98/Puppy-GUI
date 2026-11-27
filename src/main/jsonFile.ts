@@ -10,10 +10,10 @@ export function readJson<T>(path: string, fallback: T): T {
   }
 }
 
-/** Write via temp file + rename so a crash can never leave half a file behind. */
-export function writeJsonAtomic(path: string, value: unknown): void {
+/** Write via temp file + rename so a crash can never leave half a file behind. `mode` limits who may read it. */
+export function writeJsonAtomic(path: string, value: unknown, mode?: number): void {
   mkdirSync(dirname(path), { recursive: true })
   const tmp = `${path}.tmp`
-  writeFileSync(tmp, JSON.stringify(value, null, 2))
+  writeFileSync(tmp, JSON.stringify(value, null, 2), { mode })
   renameSync(tmp, path)
 }
