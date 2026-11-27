@@ -56,7 +56,23 @@ test('the Walmart marketplace can be searched, and a server added without saving
   expect(added?.headers.Authorization).toBe('Bearer $PUPPY_MARKETPLACE_TOKEN') // the placeholder, filled in only in memory
   expect(readFileSync(serversFile, 'utf8')).not.toMatch(/eyJ[\w-]{10,}\./)
   await shot(page(), 'mcp-marketplace')
+})
 
+// Needs the user's marketplace sign-in: PUPPY_LIVE_MARKETPLACE=1 npx playwright test e2e/mcp.spec.ts
+test('a real marketplace server answers in a chat, signed in with the user\'s token', async () => {
+  test.skip(!process.env.PUPPY_LIVE_MARKETPLACE, 'needs a marketplace sign-in')
+  await expect(page().getByRole('status').filter({ hasText: 'Signed in.' })).toBeVisible(AGENT)
+  await page().getByRole('button', { name: 'New chat' }).click()
+  await sendAndWait(page(), 'Call the list_available_templates tool from the Accelerator MCP server, then tell me how many templates it listed, as a number only.')
+  const log = page().getByRole('log', { name: 'Conversation' })
+  await expect(log.getByText(/list_available_templates/).first()).toBeVisible() // the tool card: it really ran
+  await expect(log.getByText(/^\d+$/).last()).toBeVisible()
+  await shot(page(), 'mcp-marketplace-in-chat')
+})
+
+test('a marketplace server can be removed', async () => {
+  await page().getByRole('button', { name: 'MCP servers' }).click()
+  const yours = page().getByRole('list', { name: 'Your servers' })
   await page().getByRole('button', { name: 'Remove Accelerator MCP Server' }).click()
   await expect(yours.getByRole('switch', { name: 'Accelerator MCP Server' })).toHaveCount(0)
 })
