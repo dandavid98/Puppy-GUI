@@ -8,10 +8,22 @@ brain is your installed Code Puppy, which runs in the background as
 `code-puppy --acp` (Agent Client Protocol). Code Puppy keeps updating itself and
 the app always uses the current version.
 
+## Set up (new machine, or to get the latest)
+
+```bash
+git clone https://github.com/dandavid98/Puppy-GUI.git && cd Puppy-GUI
+npm run setup
+```
+
+That is the whole install (macOS; needs git, Node 22.9+ and Code Puppy). `scripts/setup.sh` pulls the latest code,
+installs dependencies, builds `~/Applications/Puppy.app` and opens it; after that the app updates itself (see
+"Updating"). It is safe to rerun. Asking Code Puppy to "set this repo up" should end in exactly this command (see
+`AGENTS.md`). Behind a company mirror? See the top of `scripts/setup.sh`.
+
 ## Run it
 
-- **Puppy.app** in `~/Applications` (build or refresh it with `npm run package:mac`; drag it to the Dock), or
-- **Double-click** `Start Puppy.command` in Finder (builds, then runs from source), or
+- **Puppy.app** in `~/Applications` (installed by `npm run setup`; drag it to the Dock), or
+- **Double-click** `Start Puppy.command` in Finder (builds, then runs from source; does not self-update), or
 - `npm run dev` for development (UI changes reload live).
 
 Only one Puppy runs per data folder; opening a second one just focuses the first.
@@ -44,6 +56,8 @@ If your network blocks npm or GitHub (a company Artifactory, say), keep that con
 - `.npmrc` (gitignored): copy `.npmrc.example` and set `registry=` to your mirror. The lockfile points at the public npm registry; npm swaps in your mirror's host.
 - `.env.local` (gitignored): `ELECTRON_MIRROR=https://your-mirror/.../electron/releases/download/` so the postinstall can fetch the Electron binary.
 
+`npm run setup` writes both for you when given `PUPPY_NPM_REGISTRY` and `ELECTRON_MIRROR` (see the top of `scripts/setup.sh`).
+
 ## Layout
 
 | Path | What lives there |
@@ -52,6 +66,8 @@ If your network blocks npm or GitHub (a company Artifactory, say), keep that con
 | `src/main/acp/` | Spawning code-puppy, the ACP connection, permission prompts, stdout cleanup |
 | `src/main/workspace.ts` | Chat vs code sessions, rename/delete, smart titles, model list (only sessions this app created) |
 | `src/main/preview.ts`, `pathGuard.ts` | Private `puppy-preview://` scheme + the folder allow-list behind the preview panel |
+| `scripts/setup.sh` | One-command install / bring-up-to-date (`npm run setup`) |
+| `scripts/version.cjs` | The version: package.json's major.minor + commit count, shared by the build and `make-app.sh` |
 | `scripts/make-app.sh` | Assembles and signs `Puppy.app` without electron-builder (blocked network) |
 | `build/` | App icon source (SVG), rendered PNG and `.icns` |
 | `src/preload/` | The narrow `window.puppy` bridge (context isolation + sandbox on) |

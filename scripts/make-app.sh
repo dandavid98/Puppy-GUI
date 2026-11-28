@@ -39,13 +39,10 @@ APP_DIR="$DEST/Contents/Resources/app"
 mkdir -p "$APP_DIR"
 ditto out "$APP_DIR/out"
 # puppySource/puppyCommit let the installed app update itself: where its code lives, and which commit this build is.
-# The version shown in Settings is package.json's major.minor plus the number of commits as the last digit (0.1.7,
-# then 0.1.8, ...), so it goes up with every update and nobody has to remember to bump it. Edit package.json to
-# change the major.minor part. Without git history it falls back to package.json's version as written.
+# The version comes from scripts/version.cjs, the same one the build bakes into the app.
 COMMIT=$(git rev-parse HEAD 2>/dev/null || echo unknown)
-COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "")
-node -p "const [major, minor, patch] = require('./package.json').version.split('.'); JSON.stringify({ name: 'puppy-desktop', version: [major, minor, process.argv[2] || patch].join('.'), main: './out/main/index.js', puppySource: process.cwd(), puppyCommit: process.argv[1] }, null, 2)" \
-  "$COMMIT" "$COUNT" > "$APP_DIR/package.json"
+node -p "JSON.stringify({ name: 'puppy-desktop', version: require('./scripts/version.cjs').puppyVersion(), main: './out/main/index.js', puppySource: process.cwd(), puppyCommit: process.argv[1] }, null, 2)" \
+  "$COMMIT" > "$APP_DIR/package.json"
 
 cp build/icon.icns "$DEST/Contents/Resources/electron.icns"   # the file Electron's plist points at
 # Electron treats an executable literally named "Electron" as a dev copy (app.isPackaged

@@ -97,7 +97,7 @@ void app.whenReady().then(() => {
   // Before anything starts: Code Puppy, its shell commands and the MCP servers it runs need the Terminal's PATH, not Finder's.
   process.env.PATH = loginShellPath()
   const data = app.getPath('userData')
-  const info = { version: app.getVersion(), dataPath: data, logPath: join(data, 'code-puppy.log') }
+  const info = { version: __PUPPY_VERSION__, dataPath: data, logPath: join(data, 'code-puppy.log') }
   const settings = new SettingsStore(join(data, 'settings.json'))
   applyTheme(settings.get())
   /** code-puppy's own Python: quota, agents and the MCP marketplace all go through it. */

@@ -4,7 +4,11 @@
   "description": "A Claude-desktop-style app for Code Puppy: chat + code workspaces over ACP.",
   "private": true,
   "main": "./out/main/index.js",
+  "engines": {
+    "node": ">=22.9"
+  },
   "scripts": {
+    "setup": "bash scripts/setup.sh",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
