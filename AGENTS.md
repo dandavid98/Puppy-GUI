@@ -18,10 +18,12 @@ After that the app keeps itself current (Settings > About > Update Puppy).
   and never self-update. That is the "stuck on an old version" trap.
 - Do NOT pass `--depth 1` when cloning. Clone with plain `git clone <url>`, then `cd` into it.
 - If it stops, it prints why. Fix that one thing and rerun `npm run setup`:
-  - **npm registry unreachable / Electron download failed**: the network blocks public npm or GitHub.
-    Ask the user for their company's npm mirror and Electron (GitHub releases) mirror, then run
+  - **npm registry unreachable / Electron download failed**: on the Walmart network setup already switches to
+    Walmart's internal mirrors by itself, so this almost always means the user is off the VPN / Eagle WiFi: ask
+    them to connect, then rerun. Only on some other company's network, ask the user for their npm mirror and
+    Electron (GitHub releases) mirror, then run
     `PUPPY_NPM_REGISTRY=<npm mirror> ELECTRON_MIRROR=<mirror>/electron/electron/releases/download/ npm run setup`.
-    They are saved to the gitignored `.npmrc` / `.env.local`. Never commit those files.
+    Mirrors are saved to the gitignored `.npmrc` / `.env.local`. Never commit those files.
   - **"Puppy is open"**: tell the user to use Settings > About > Update Puppy, or quit Puppy and rerun.
   - **Cannot fast-forward**: the user has local commits or changes. Show them `git status`; do not reset or
     discard their work without asking.

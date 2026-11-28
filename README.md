@@ -18,7 +18,8 @@ npm run setup
 That is the whole install (macOS; needs git, Node 22.9+ and Code Puppy). `scripts/setup.sh` pulls the latest code,
 installs dependencies, builds `~/Applications/Puppy.app` and opens it; after that the app updates itself (see
 "Updating"). It is safe to rerun. Asking Code Puppy to "set this repo up" should end in exactly this command (see
-`AGENTS.md`). Behind a company mirror? See the top of `scripts/setup.sh`.
+`AGENTS.md`). On the Walmart network it switches to the internal npm/Electron mirrors by itself (VPN or Eagle WiFi
+needed); behind another company's mirror, see the top of `scripts/setup.sh`.
 
 ## Run it
 
@@ -56,7 +57,7 @@ If your network blocks npm or GitHub (a company Artifactory, say), keep that con
 - `.npmrc` (gitignored): copy `.npmrc.example` and set `registry=` to your mirror. The lockfile points at the public npm registry; npm swaps in your mirror's host.
 - `.env.local` (gitignored): `ELECTRON_MIRROR=https://your-mirror/.../electron/releases/download/` so the postinstall can fetch the Electron binary.
 
-`npm run setup` writes both for you when given `PUPPY_NPM_REGISTRY` and `ELECTRON_MIRROR` (see the top of `scripts/setup.sh`).
+`npm run setup` writes both for you: automatically on the Walmart network, or from `PUPPY_NPM_REGISTRY` and `ELECTRON_MIRROR` (see the top of `scripts/setup.sh`).
 
 ## Layout
 
