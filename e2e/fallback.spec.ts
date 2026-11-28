@@ -7,7 +7,7 @@ const field = (name: 'Main model' | 'Secondary model') => page().getByRole('butt
 const settings = () => page().evaluate(() => window.puppy.getSettings())
 
 test('switching models automatically is off until switched on, and asks for both models', async () => {
-  await page().getByRole('button', { name: 'Settings' }).click()
+  await page().getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(page().getByRole('heading', { name: 'Usage limits' })).toBeVisible()
   await expect(toggle()).toHaveAttribute('aria-checked', 'false') // off by default
   await expect(field('Main model')).toHaveCount(0)
@@ -55,7 +55,7 @@ test('turning it off keeps the models, and the setting survives a reload of the 
 
   await page().reload()
   await expect(page().getByText('Code Puppy is ready')).toBeVisible({ timeout: 60_000 })
-  await page().getByRole('button', { name: 'Settings' }).click()
+  await page().getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(toggle()).toHaveAttribute('aria-checked', 'false')
   await toggle().click()
   await expect(field('Main model')).toHaveAccessibleName(/^Main model: /)
@@ -64,6 +64,7 @@ test('turning it off keeps the models, and the setting survives a reload of the 
 })
 
 test('a chat says so when Puppy switched models for it, in the models\' own names', async () => {
+  await page().getByRole('button', { name: 'Close settings' }).click()
   await page().getByRole('button', { name: 'New chat' }).click()
   await sendAndWait(page(), 'Say only the word hi.')
   const { sessionId, options } = await page().evaluate(async () => {

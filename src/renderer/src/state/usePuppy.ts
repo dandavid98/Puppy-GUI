@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import type { Attachment, ChatFolder, FolderPatch, SessionSummary, Settings, WorkspaceKind } from '@shared/api'
 import type { PermissionLevel } from '@shared/permissions'
 import { isLocalUrl, previewTarget, webTarget, type PreviewTarget } from '@shared/preview'
+import { forgetDraft } from './drafts'
 import { loadLists } from './loadLists'
 import { initialState, reducer, type Action } from './store'
 
@@ -232,6 +233,7 @@ export function usePuppy() {
       deleteSession: (sessionId: string) =>
         guard(async () => {
           await api.deleteSession(sessionId)
+          forgetDraft(sessionId)
           dispatch({ type: 'removed', sessionId })
         }),
       updateSettings: (patch: Partial<Settings>) =>

@@ -24,6 +24,7 @@ interface Props {
   onRevealLog: () => void
   onRestartAgent: () => void
   onUpdateApp: () => Promise<UpdateOutcome>
+  onClose: () => void
 }
 
 /** What to tell the user after "Update Puppy". Nothing when they said no, or when Puppy is already closing. */
@@ -67,7 +68,7 @@ function ThemePicker({ value, onChange }: { value: ThemePreference; onChange: (t
   )
 }
 
-export function SettingsView({ settings, model, quota, onRefreshQuota, modelError, onRetryModels, loadAppInfo, onUpdate, onModel, onRevealLog, onRestartAgent, onUpdateApp }: Props) {
+export function SettingsView({ settings, model, quota, onRefreshQuota, modelError, onRetryModels, loadAppInfo, onUpdate, onModel, onRevealLog, onRestartAgent, onUpdateApp, onClose }: Props) {
   const [name, setName] = useState(settings.displayName)
 
   // The main model is the default one, that new chats start on: choosing either is choosing both.
@@ -101,7 +102,7 @@ export function SettingsView({ settings, model, quota, onRefreshQuota, modelErro
   }
 
   return (
-    <Page title="Settings">
+    <Page title="Settings" onClose={onClose}>
         <Section title="Profile">
           <label className="block text-sm font-medium" htmlFor="display-name">
             What should Puppy call you?

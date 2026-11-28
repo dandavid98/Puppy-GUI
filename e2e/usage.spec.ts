@@ -124,7 +124,7 @@ test('the model menu rings show your REAL quota, not a local guess', async () =>
 
 test('settings shows the real quota buckets and when they reset', async () => {
   const quota = (await page().evaluate(() => window.puppy.getQuota()))!
-  await page().getByRole('button', { name: 'Settings' }).click()
+  await page().getByRole('button', { name: 'Settings', exact: true }).click()
   const section = page().getByRole('region', { name: 'Quota' })
   await expect(section.getByRole('progressbar', { name: 'Large models' })).toHaveAttribute('aria-valuenow', String(percent(quota.large.used, quota.large.limit)))
   await expect(section.getByRole('progressbar', { name: 'All models' })).toHaveAttribute('aria-valuenow', String(percent(quota.standard.used, quota.standard.limit)))
@@ -132,6 +132,7 @@ test('settings shows the real quota buckets and when they reset', async () => {
   await section.getByRole('button', { name: 'Refresh quota' }).click()
   await expect(section.getByRole('button', { name: 'Refresh quota' })).toBeEnabled(AGENT) // finished checking
   await shot(page(), '13-settings-quota')
+  await page().getByRole('button', { name: 'Close settings' }).click()
   await page().getByRole('button', { name: 'Chat', exact: true }).click()
 })
 
@@ -178,7 +179,7 @@ test('the reset countdown keeps ticking on screen without any refresh', async ()
   test.skip(quota.resetsInSecs < 20 * 60, 'the reset is too close to watch a ten-minute tick')
 
   await page().clock.install()
-  await page().getByRole('button', { name: 'Settings' }).click()
+  await page().getByRole('button', { name: 'Settings', exact: true }).click()
   const reset = page().getByTestId('quota-reset')
   const before = minutesIn((await reset.textContent())!)
 

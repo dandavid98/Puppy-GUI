@@ -1,6 +1,7 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import type { AvailableCommand } from '@agentclientprotocol/sdk'
 import type { Attachment, PermissionPrompt } from '@shared/api'
+import { useDraft } from '../state/drafts'
 import type { Thread } from '../state/store'
 import { Composer } from './Composer'
 import { Message, Thinking } from './Messages'
@@ -24,7 +25,7 @@ interface Props {
 const STICK_THRESHOLD = 120
 
 export function ThreadView({ thread, showWork, permissions, permissionPicker, modelPicker, contextMeter, commands, onSend, onStop, onChooseFolder, onAnswer }: Props) {
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useDraft(thread.sessionId) // unsent text survives switching away and back
   const scroller = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
   const last = thread.items.at(-1)

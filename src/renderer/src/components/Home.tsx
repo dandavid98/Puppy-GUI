@@ -3,6 +3,7 @@ import type { AvailableCommand } from '@agentclientprotocol/sdk'
 import { FolderOpen, PawPrint } from 'lucide-react'
 import type { Attachment, WorkspaceKind } from '@shared/api'
 import { folderName, greeting, prettyPath } from '../lib/format'
+import { homeDraftId, useDraft } from '../state/drafts'
 import { Composer } from './Composer'
 import { Thinking } from './Messages'
 
@@ -30,8 +31,8 @@ const STARTERS = [
 ]
 
 /** The empty state: greeting, a big composer, and quick starts. */
-export function Home({ mode, name, folder, recentFolders, permissionPicker, modelPicker, contextMeter, commands, onSend, onChooseFolder, onSelectFolder, initialDraft = '' }: Props) {
-  const [draft, setDraft] = useState(initialDraft)
+export function Home({ mode, name, folder, recentFolders, permissionPicker, modelPicker, contextMeter, commands, onSend, onChooseFolder, onSelectFolder, initialDraft }: Props) {
+  const [draft, setDraft] = useDraft(homeDraftId(mode), initialDraft)
   const [sending, setSending] = useState(false)
   const isCode = mode === 'code'
 

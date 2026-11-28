@@ -62,7 +62,7 @@ test('choosing a model on the home screen is for the chat about to start only', 
 })
 
 test("putting a chat on a model that is neither of the two turns automatic switching off there, and says so", async () => {
-  await page().getByRole('button', { name: 'Settings' }).click()
+  await page().getByRole('button', { name: 'Settings', exact: true }).click()
   await page().getByRole('switch', { name: 'Switch models automatically' }).click()
   await expect(page().getByRole('button', { name: /^Main model:/ })).toHaveAccessibleName(`Main model: ${defaultName}`) // the default is the main model
   await page().getByRole('button', { name: /^Secondary model:/ }).click()
@@ -70,6 +70,7 @@ test("putting a chat on a model that is neither of the two turns automatic switc
   const secondaryName = (await secondary.innerText()).split('\n')[0]
   await secondary.click()
 
+  await page().getByRole('button', { name: 'Close settings' }).click()
   await page().getByRole('button', { name: 'New chat' }).click()
   await sendAndWait(page(), 'Say only the word four.')
   const log = page().getByRole('log', { name: 'Conversation' })
@@ -81,6 +82,6 @@ test("putting a chat on a model that is neither of the two turns automatic switc
   await page().getByRole('listbox', { name: 'Model' }).getByRole('option').filter({ has: page().getByText(defaultName, { exact: true }) }).first().click()
   await expect(log.getByRole('status').filter({ hasText: 'Automatic model switching is back on in this chat' })).toBeVisible()
 
-  await page().getByRole('button', { name: 'Settings' }).click()
+  await page().getByRole('button', { name: 'Settings', exact: true }).click()
   await page().getByRole('switch', { name: 'Switch models automatically' }).click() // leave it off, as the user found it
 })

@@ -85,10 +85,11 @@ test('a local server the agent mentions opens in the panel once it answers', asy
 })
 
 test('switched off in Settings, nothing opens by itself, but the Preview button remains', async () => {
-  await page().getByRole('button', { name: 'Settings' }).click()
+  await page().getByRole('button', { name: 'Settings', exact: true }).click()
   await page().getByRole('switch', { name: 'Open previews automatically' }).click()
   await expect(page().getByRole('switch', { name: 'Open previews automatically' })).toHaveAttribute('aria-checked', 'false')
 
+  await page().getByRole('button', { name: 'Close settings' }).click()
   await page().getByRole('button', { name: 'Code', exact: true }).click()
   await sendAndWait(page(), 'Use your file-creation tool (not the shell) to create a file named pup2.html in the current folder containing exactly: <h1>Quiet pup</h1> Then reply with only the word: done')
   await expect(page().getByRole('button', { name: 'Preview pup2.html' })).toBeVisible(AGENT)

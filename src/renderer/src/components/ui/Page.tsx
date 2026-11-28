@@ -1,13 +1,27 @@
 import { useId, type ReactNode } from 'react'
+import { X } from 'lucide-react'
 
 /** A full-width page in the main area (Settings, Agents, MCP servers): serif title, then cards. */
-export function Page({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+export function Page({ title, description, onClose, children }: { title: string; description?: string; /** Shows a close button by the title. */ onClose?: () => void; children: ReactNode }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-2xl space-y-5 px-6 pt-2 pb-12">
-        <div>
-          <h1 className="font-serif text-3xl tracking-tight">{title}</h1>
-          {description && <p className="mt-2 text-sm text-muted">{description}</p>}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="font-serif text-3xl tracking-tight">{title}</h1>
+            {description && <p className="mt-2 text-sm text-muted">{description}</p>}
+          </div>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={`Close ${title.toLowerCase()}`}
+              title="Close (Esc)"
+              className="grid size-9 shrink-0 place-items-center rounded-lg text-muted hover:bg-raised hover:text-ink"
+            >
+              <X size={18} aria-hidden />
+            </button>
+          )}
         </div>
         {children}
       </div>

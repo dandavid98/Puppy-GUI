@@ -129,3 +129,13 @@
   .hljs-title, .hljs-function, .hljs-section { color: #8ab4f8; }
   .hljs-type, .hljs-class { color: #f0c674; }
 }
+
+/* The frosted glass over the sidebar while Settings is open fades in rather than snapping on. */
+@theme {
+  --animate-frost-in: frost-in 180ms ease-out;
+  @keyframes frost-in {
+    from {
+      opacity: 0;
+    }
+  }
+}

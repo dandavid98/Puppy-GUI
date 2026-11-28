@@ -25,7 +25,7 @@ export function App() {
   const firstMessage = thread?.items.find((item) => item.type === 'user')
   const title = summary?.title ?? (firstMessage && 'text' in firstMessage ? firstMessage.text : null)
 
-  // Cmd+N: new conversation. Cmd+,: settings. Esc: stop the running turn.
+  // Cmd+N: new conversation. Cmd+,: settings. Esc: close Settings, or stop the running turn.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey && event.key.toLowerCase() === 'n') {
@@ -34,13 +34,17 @@ export function App() {
       } else if (event.metaKey && event.key === ',') {
         event.preventDefault()
         actions.openSettings()
+      } else if (event.key === 'Escape' && inSettings && !document.querySelector('dialog[open]')) {
+        // (an open menu takes its own Escape first.) Blur first: a field being edited saves when it loses focus.
+        ;(document.activeElement as HTMLElement | null)?.blur()
+        actions.closeSettings()
       } else if (event.key === 'Escape' && thread?.running) {
         actions.cancel(thread.sessionId)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [actions, state.mode, thread])
+  }, [actions, state.mode, thread, inSettings])
 
   const previewActions = useMemo(
     () => ({ cwd: thread?.cwd ?? null, showFile: actions.showFile, showUrl: actions.showUrl, showHtml: (html: string) => void actions.showHtml(html) }),
@@ -102,6 +106,7 @@ export function App() {
           onRevealLog={actions.revealLog}
           onRestartAgent={actions.restartAgent}
           onUpdateApp={actions.updateApp}
+          onClose={actions.closeSettings}
         />
       )
     }
@@ -110,9 +115,10 @@ export function App() {
         <ThreadView
           key={thread.sessionId} // a fresh view per conversation: no scroll position, draft or attachments carried over
           thread={thread}
-          showWork={state.settings?.thinkingMode === true}          permissions={state.permissions.filter((prompt) => prompt.sessionId === thread.sessionId)}
+          showWork={state.settings?.thinkingMode === true}
+          permissions={state.permissions.filter((prompt) => prompt.sessionId === thread.sessionId)}
           permissionPicker={permissionPicker}
-        modelPicker={modelPicker}
+          modelPicker={modelPicker}
           contextMeter={contextMeter}
           commands={state.commands}
           onSend={(text, attachments) => void actions.send(text, attachments)}
@@ -124,7 +130,7 @@ export function App() {
     }
     return (
       <Home
-        key={state.draft?.id ?? 0} // a new "Ask for this agent" fills the box afresh
+        key={`${state.mode}-${state.draft?.id ?? 0}`} // each mode has its own box (and kept text); a new "Ask for this agent" fills it afresh
         initialDraft={state.draft?.text}
         mode={state.mode}
         name={state.settings?.displayName ?? ''}
@@ -145,23 +151,37 @@ export function App() {
     <PreviewContext.Provider value={previewActions}>
     <div className="flex h-full">
       {sidebarOpen && (
-        <Sidebar
-          sessions={state.sessions}
-          folders={state.folders}
-          activeId={state.activeId}
-          mode={state.mode}
-          status={state.status}
-          view={state.view}
-          updateAvailable={state.updateAvailable}
-          onUpdate={() => void actions.updateNow()}
-          onNew={actions.newConversation}
-          actions={actions}
-          onTheme={(theme) => void actions.updateSettings({ theme })}
-          onSettings={actions.openSettings}
-          onAgents={actions.openAgents}
-          onMcp={actions.openMcp}
-          onCollapse={() => setSidebarOpen(false)}
-        />
+        <div className="relative flex shrink-0">
+          {/* Behind frosted glass while Settings is open: out of reach (inert), and a click on it closes Settings. */}
+          <div inert={inSettings} className="flex">
+            <Sidebar
+              sessions={state.sessions}
+              folders={state.folders}
+              activeId={state.activeId}
+              mode={state.mode}
+              status={state.status}
+              view={state.view}
+              updateAvailable={state.updateAvailable}
+              onUpdate={() => void actions.updateNow()}
+              onNew={actions.newConversation}
+              actions={actions}
+              onTheme={(theme) => void actions.updateSettings({ theme })}
+              onSettings={actions.openSettings}
+              onAgents={actions.openAgents}
+              onMcp={actions.openMcp}
+              onCollapse={() => setSidebarOpen(false)}
+            />
+          </div>
+          {inSettings && (
+            <div
+              aria-hidden
+              data-testid="settings-backdrop"
+              title="Close settings"
+              onClick={actions.closeSettings}
+              className="absolute inset-0 z-30 cursor-pointer bg-canvas/45 backdrop-blur-[6px] motion-safe:animate-frost-in"
+            />
+          )}
+        </div>
       )}
       <main className="flex min-w-0 flex-1 flex-col">
         <TopBar
