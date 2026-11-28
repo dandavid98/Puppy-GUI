@@ -1,7 +1,7 @@
 import { pythonNextTo } from '../codePuppyPython'
 
 /**
- * Starting Code Puppy for ACP, with two things Code Puppy's ACP agent lacks.
+ * Starting Code Puppy for ACP, with three things Code Puppy's ACP agent lacks.
  *
  * 1. Servers added in Puppy actually reaching the model.
  *
@@ -23,6 +23,15 @@ import { pythonNextTo } from '../codePuppyPython'
  * has set it up (a chat Puppy never sets is standard). The agent echoes the level
  * back, so Puppy can tell it took effect rather than assume. Nothing is written
  * to the user's config.
+ *
+ * 3. A model per chat (ACP `session/set_config_option` with the option id `puppy_session_model`).
+ *
+ * Code Puppy has one model per process, and every chat without one of its own follows it on
+ * its next prompt, so changing the model in one chat changed it for all of them, and for every
+ * new chat. An agent can carry its own model, though, and ignores the process one while it does.
+ * This option sets that, for one chat, and says so in its answer (and writes nothing to the
+ * user's config). The ordinary `model` option is untouched: it is still the default for chats
+ * that have not chosen. An empty value gives a chat back to the default.
  *
  * Then it runs Code Puppy's
  * entry point exactly as the `code-puppy` launcher does.
@@ -110,6 +119,9 @@ except Exception as error:
 PERMISSION_MODES = ("ask", "standard", "full")
 ACP_STATE_MODULES = ("code_puppy_core_plugins.acp.state", "code_puppy.plugins.acp.state")
 ACP_AGENT_MODULES = ("code_puppy_core_plugins.acp.agent", "code_puppy.plugins.acp.agent")
+ACP_SESSION_CONFIG_MODULES = ("code_puppy_core_plugins.acp.session_config", "code_puppy.plugins.acp.session_config")
+# The option id Puppy uses to give one chat its own model (the ordinary "model" option sets the process-wide default).
+SESSION_MODEL_OPTION = "puppy_session_model"
 
 def first_module(names):
     for name in names:
@@ -167,6 +179,38 @@ try:
     install_permission_levels()
 except Exception as error:
     print(f"Puppy: permission levels are unavailable ({error!r})", file=sys.stderr)
+
+def install_session_models():
+    agent_class = first_module(ACP_AGENT_MODULES).CodePuppyAgent
+    original = agent_class.set_config_option
+    if getattr(original, "puppy_session_models", False):
+        return  # already installed
+    session_config = first_module(ACP_SESSION_CONFIG_MODULES)
+
+    async def set_config_option(self, config_id, session_id, value, **kwargs):
+        if config_id != SESSION_MODEL_OPTION:
+            return await original(self, config_id, session_id, value, **kwargs)
+        from acp.schema import SetSessionConfigOptionResponse
+        from code_puppy.command_line.model_picker_completion import load_model_names
+
+        session = self._sessions.get(session_id)
+        if session is None:
+            raise ValueError(f"No such session: {session_id}")
+        model = str(value) if value else None  # empty: back to following the process-wide model
+        if model is not None and model not in (load_model_names() or []):
+            raise ValueError(f"No such model: {model}")
+        # The agent's own model comes before the process-wide one, and each run builds from it.
+        session.agent.set_runtime_model_name_override(model)
+        meta = {"puppy": {"model": model}}
+        return SetSessionConfigOptionResponse.model_validate({"configOptions": session_config.config_options() or None, "_meta": meta})
+
+    set_config_option.puppy_session_models = True
+    agent_class.set_config_option = set_config_option
+
+try:
+    install_session_models()
+except Exception as error:
+    print(f"Puppy: a model per chat is unavailable ({error!r})", file=sys.stderr)
 `
 
 export const ACP_BOOTSTRAP = `${ACP_PATCH}

@@ -140,4 +140,48 @@ print("BOTH", asyncio.run(both()))
 `)
     expect(stdout).toContain('BOTH [False, True, False, True]')
   }, 90_000)
+
+  it('gives one chat its own model, leaving the others, the default and the config file alone', async () => {
+    const { stdout, stderr } = await inCodePuppy(`
+import asyncio
+from types import SimpleNamespace
+import code_puppy.config as config
+from code_puppy.agents.agent_manager import load_agent
+from code_puppy.command_line.model_picker_completion import load_model_names
+from code_puppy_core_plugins.acp.agent import CodePuppyAgent
+from code_puppy.plugins import load_plugin_callbacks
+
+load_plugin_callbacks()  # where the models come from, as when Code Puppy starts
+default, saved = config.get_global_model_name(), config.get_value("model")
+other = next(name for name in load_model_names() if name != default)
+me = SimpleNamespace(_sessions={"mine": SimpleNamespace(agent=load_agent("code-puppy")), "theirs": SimpleNamespace(agent=load_agent("code-puppy"))})
+mine, theirs = me._sessions["mine"].agent, me._sessions["theirs"].agent
+
+def choose(session, value):
+    try:
+        response = asyncio.run(CodePuppyAgent.set_config_option(me, "puppy_session_model", session, value))
+    except ValueError as error:
+        return f"refused: {error}"
+    return (response.field_meta or {}).get("puppy", {}).get("model")
+
+print("ECHO", choose("mine", other) == other)
+print("MINE", mine.get_model_name() == other)
+print("THEIRS", theirs.get_model_name() == default)
+print("DEFAULT", config.get_global_model_name() == default, config.get_value("model") == saved)
+print("UNKNOWN", choose("mine", "no-such-model"), mine.get_model_name() == other)
+print("NOSESSION", choose("nobody", other))
+print("CLEAR", choose("mine", ""), mine.get_model_name() == default)
+from code_puppy_core_plugins.acp.agent import CodePuppyAgent as again
+print("OTHER", asyncio.run(again.set_config_option(me, "no_such_option", "mine", "x")).field_meta)
+`)
+    expect(stderr).not.toContain('unavailable')
+    expect(stdout).toContain('ECHO True') // it says it applied the model, so Puppy need not assume
+    expect(stdout).toContain('MINE True')
+    expect(stdout).toContain('THEIRS True') // another chat keeps following the default
+    expect(stdout).toContain('DEFAULT True True') // neither the process default nor the user's config moved
+    expect(stdout).toContain('UNKNOWN refused: No such model: no-such-model True')
+    expect(stdout).toContain('NOSESSION refused: No such session: nobody')
+    expect(stdout).toContain('CLEAR None True') // back to following the default
+    expect(stdout).toContain('OTHER None') // any other option is Code Puppy's, untouched
+  }, 90_000)
 })
