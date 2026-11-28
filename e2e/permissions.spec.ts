@@ -35,6 +35,15 @@ test('the control sits beside the folder, starts on Standard, and offers the thr
   const box = await page().getByLabel('Message Code Puppy').locator('xpath=ancestor::div[contains(@class,"rounded-2xl")][1]').boundingBox()
   expect(level!.y).toBeGreaterThanOrEqual(box!.y + box!.height)
   expect(folder!.y).toBeGreaterThanOrEqual(box!.y + box!.height)
+  // Attach opens that row, just before the folder...
+  const attach = await page().getByRole('button', { name: 'Attach files' }).boundingBox()
+  expect(attach!.x + attach!.width).toBeLessThanOrEqual(folder!.x)
+  expect(Math.abs(attach!.y + attach!.height / 2 - (folder!.y + folder!.height / 2))).toBeLessThan(4)
+  // ...and send is on the same line as the text, at its end: the box is a single row.
+  const [text, send] = [await page().getByLabel('Message Code Puppy').boundingBox(), await page().getByRole('button', { name: 'Send message' }).boundingBox()]
+  expect(send!.x).toBeGreaterThanOrEqual(text!.x + text!.width)
+  expect(send!.y).toBeGreaterThanOrEqual(text!.y)
+  expect(send!.y + send!.height).toBeLessThanOrEqual(text!.y + text!.height)
 
   await picker().click()
   const options = page().getByRole('listbox', { name: 'Permissions' }).getByRole('option')

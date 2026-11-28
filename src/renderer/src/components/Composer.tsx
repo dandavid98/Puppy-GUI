@@ -7,7 +7,7 @@ import { matchCommands } from '../lib/commands'
 import { folderName, prettyPath } from '../lib/format'
 import { previewOf } from '../state/thread'
 import { AttachmentChips } from './AttachmentChips'
-import { CHIP, CHIP_ICON } from './ui/chip'
+import { CHIP, CHIP_ICON, ICON_CHIP } from './ui/chip'
 import { commandOptionId, SlashMenu } from './SlashMenu'
 
 interface Props {
@@ -28,7 +28,6 @@ interface Props {
 }
 
 const MAX_HEIGHT = 320
-const ICON_BUTTON = 'grid size-8 place-items-center rounded-lg text-muted hover:bg-raised hover:text-ink'
 
 export function Composer(props: Props) {
   const { value, onChange, onSend, onStop, running, placeholder, commands, folder, permissionPicker, modelPicker, contextMeter, autoFocus } = props
@@ -152,49 +151,26 @@ export function Composer(props: Props) {
         <label className="sr-only" htmlFor="composer">
           Message Code Puppy
         </label>
-        <textarea
-          id="composer"
-          ref={textarea}
-          rows={1}
-          value={value}
-          placeholder={dragging ? 'Drop files to attach' : placeholder}
-          role="combobox"
-          aria-expanded={menuOpen}
-          aria-controls={menuOpen ? listId : undefined}
-          aria-autocomplete="list"
-          aria-activedescendant={menuOpen ? commandOptionId(listId, activeCommand) : undefined}
-          onChange={(event) => onChange(event.target.value)}
-          onKeyDown={onKeyDown}
-          onPaste={onPaste}
-          className="block max-h-80 w-full resize-none bg-transparent px-4 pt-4 pb-2 text-[15px] leading-6 placeholder:text-muted focus:outline-none"
-        />
-        {fileError && (
-          <p role="alert" className="px-4 pb-1 text-xs text-danger">
-            {fileError}
-          </p>
-        )}
-        {fileNote && (
-          <p role="status" className="px-4 pb-1 text-xs text-muted">
-            {fileNote}
-          </p>
-        )}
-        {/* Inside the box: only what acts on the message. Everything about the chat is in the chips below. */}
-        <div className="flex items-center justify-between px-2.5 pb-2.5">
-          <input
-            ref={filePicker}
-            type="file"
-            multiple
-            hidden
-            onChange={(event) => {
-              void addFiles([...(event.target.files ?? [])])
-              event.target.value = ''
-            }}
+        {/* Inside the box: the message, and send. Everything else is in the chips below. */}
+        <div className="flex items-end gap-2 p-2 pl-3">
+          <textarea
+            id="composer"
+            ref={textarea}
+            rows={1}
+            value={value}
+            placeholder={dragging ? 'Drop files to attach' : placeholder}
+            role="combobox"
+            aria-expanded={menuOpen}
+            aria-controls={menuOpen ? listId : undefined}
+            aria-autocomplete="list"
+            aria-activedescendant={menuOpen ? commandOptionId(listId, activeCommand) : undefined}
+            onChange={(event) => onChange(event.target.value)}
+            onKeyDown={onKeyDown}
+            onPaste={onPaste}
+            className="block max-h-80 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-[15px] leading-6 placeholder:text-muted focus:outline-none"
           />
-          <button type="button" onClick={() => filePicker.current?.click()} aria-label="Attach files" title="Attach files" className={`${ICON_BUTTON} shrink-0`}>
-            <Paperclip size={17} aria-hidden />
-          </button>
           {running && onStop ? (
-            <button type="button" onClick={onStop} aria-label="Stop" className="grid size-8 shrink-0 place-items-center rounded-lg bg-ink text-canvas hover:opacity-85">
+            <button type="button" onClick={onStop} aria-label="Stop" className="mb-1 grid size-8 shrink-0 place-items-center rounded-lg bg-ink text-canvas hover:opacity-85">
               <Square size={12} fill="currentColor" aria-hidden />
             </button>
           ) : (
@@ -203,15 +179,38 @@ export function Composer(props: Props) {
               onClick={submit}
               disabled={!canSend}
               aria-label="Send message"
-              className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-on-accent hover:opacity-90 disabled:opacity-40"
+              className="mb-1 grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-on-accent hover:opacity-90 disabled:opacity-40"
             >
               <ArrowUp size={17} aria-hidden />
             </button>
           )}
         </div>
+        {fileError && (
+          <p role="alert" className="px-5 pb-2 text-xs text-danger">
+            {fileError}
+          </p>
+        )}
+        {fileNote && (
+          <p role="status" className="px-5 pb-2 text-xs text-muted">
+            {fileNote}
+          </p>
+        )}
       </div>
       {/* Small, and they wrap rather than squeeze when the composer is narrow (beside the preview panel). */}
       <div className="mt-2 flex flex-wrap items-center gap-1.5 px-1">
+        <input
+          ref={filePicker}
+          type="file"
+          multiple
+          hidden
+          onChange={(event) => {
+            void addFiles([...(event.target.files ?? [])])
+            event.target.value = ''
+          }}
+        />
+        <button type="button" onClick={() => filePicker.current?.click()} aria-label="Attach files" title="Attach files" className={ICON_CHIP}>
+          <Paperclip size={CHIP_ICON} aria-hidden />
+        </button>
         {folder && (
           <button
             type="button"
