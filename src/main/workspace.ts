@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { mkdirSync, statSync } from 'node:fs'
+import { resolve } from 'node:path'
 import type { ContentBlock, McpServer, NewSessionResponse, PromptResponse, SessionConfigOption, SessionInfo, SessionNotification } from '@agentclientprotocol/sdk'
 import type { Attachment, ModelSwitch, OpenedSession, SessionSummary, TurnResult, WorkspaceKind } from '@shared/api'
 import { DEFAULT_CONTEXT_LENGTH } from '@shared/limits'
@@ -7,14 +8,13 @@ import type { PermissionLevel } from '@shared/permissions'
 import { cleanTitle, titleFrom, titlePrompt, titleSource } from '@shared/titles'
 import { estimateContext, readTurnUsage } from './context'
 import type { AgentPool } from './acp/agentPool'
+import { ChatModels } from './chatModels'
 import { confirmedLevel, PermissionLevels } from './acp/permissionLevels'
 import { deletePersistedSession } from './acp/sessionStore'
 import { RETRY_NOTE, type ModelFallback } from './modelFallback'
 import { promptBlocks } from './promptBlocks'
 import type { SessionIndex, SessionMeta } from './sessionIndex'
 import type { SettingsStore } from './settings'
-
-const MODEL_OPTION = 'model'
 
 function isDirectory(path: string): boolean {
   try {
@@ -72,13 +72,19 @@ export class Workspace extends EventEmitter<{ changed: []; turn: []; modelSwitch
     private readonly fallback?: ModelFallback,
   ) {
     super()
+    this.models = new ChatModels(
+      async (sessionId, configId, value) => (await this.contextFor(sessionId)).request('session/set_config_option', { sessionId, configId, value }),
+      (use) => this.inEveryProcess(use),
+      index,
+    )
   }
 
-  /** The model code-puppy last told us it is using; sizes the context window. */
-  private currentModel: string | null = null
+  /** The default model, and each chat's own. */
+  private readonly models: ChatModels
 
-  get model(): string | null {
-    return this.currentModel
+  /** The model a chat runs on: its own if it chose one, else the default. */
+  modelOf(sessionId: string): string | null {
+    return this.models.of(sessionId)
   }
   /** Which folder (so which process) each open session lives in. */
   private readonly sessionFolders = new Map<string, string>()
@@ -118,9 +124,9 @@ export class Workspace extends EventEmitter<{ changed: []; turn: []; modelSwitch
     if (kind === 'code' && !isDirectory(cwd)) throw new Error(`That folder no longer exists: ${cwd}`)
     const response = await this.newSession(cwd, await this.mcpServers())
     this.roots.add(cwd)
-    this.rememberModel(response.configOptions)
     this.index.create(response.sessionId, kind)
-    return { sessionId: response.sessionId, cwd, kind, permission: 'standard', configOptions: response.configOptions ?? [] }
+    // A new chat starts on the default: Code Puppy's model, which no chat's own choice ever moves.
+    return { sessionId: response.sessionId, cwd, kind, permission: 'standard', model: null, configOptions: response.configOptions ?? [] }
   }
 
   /** Re-opens a saved session; Code Puppy replays its history as session/update notifications. */
@@ -130,9 +136,9 @@ export class Workspace extends EventEmitter<{ changed: []; turn: []; modelSwitch
     const response = await context.request('session/load', { sessionId, cwd, mcpServers: await this.mcpServers() })
     this.sessionFolders.set(sessionId, cwd)
     this.roots.add(cwd)
-    this.rememberModel(response.configOptions)
     const kind = this.index.get(sessionId)?.kind ?? 'code'
-    return { sessionId, cwd, kind, permission: await this.restorePermission(sessionId), configOptions: response.configOptions ?? [] }
+    const permission = await this.restorePermission(sessionId)
+    return { sessionId, cwd, kind, permission, model: await this.models.restore(sessionId), configOptions: response.configOptions ?? [] }
   }
 
   /**
@@ -173,6 +179,7 @@ export class Workspace extends EventEmitter<{ changed: []; turn: []; modelSwitch
   async remove(sessionId: string): Promise<void> {
     await this.close(sessionId)
     this.levels.forget(sessionId)
+    this.models.forget(sessionId)
     this.fallback?.forget(sessionId)
     this.index.remove(sessionId)
   }
@@ -189,20 +196,16 @@ export class Workspace extends EventEmitter<{ changed: []; turn: []; modelSwitch
     const previous = meta?.contextTokens ?? null
     const usage = readTurnUsage(response)
     const contextTokens = usage
-      ? estimateContext({ previous, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, toolCalls, contextLength: this.contextLength() })
+      ? estimateContext({ previous, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, toolCalls, contextLength: this.contextLength(sessionId) })
       : previous
     if (contextTokens !== null) this.index.update(sessionId, { contextTokens })
     return { stopReason: response.stopReason, contextTokens }
   }
 
-  /** Window size of the current model, from code-puppy's model files. */
-  private contextLength(): number {
-    return (this.currentModel ? this.contextLengths()[this.currentModel] : undefined) ?? DEFAULT_CONTEXT_LENGTH
-  }
-
-  private rememberModel(options: SessionConfigOption[] | null | undefined): void {
-    const model = options?.find((option) => option.id === MODEL_OPTION)
-    if (model && typeof model.currentValue === 'string') this.currentModel = model.currentValue
+  /** Window size of the chat's model, from code-puppy's model files. */
+  private contextLength(sessionId: string): number {
+    const model = this.modelOf(sessionId)
+    return (model ? this.contextLengths()[model] : undefined) ?? DEFAULT_CONTEXT_LENGTH
   }
 
   /**
@@ -214,17 +217,16 @@ export class Workspace extends EventEmitter<{ changed: []; turn: []; modelSwitch
     const handover = this.fallback?.take(sessionId)
     if (!handover) return first
     const { plan, giveBack } = handover
-    let configOptions: SessionConfigOption[] = []
     try {
-      configOptions = (await this.setModel(plan.to, sessionId)) ?? []
+      await this.models.choose(sessionId, plan.to, { keep: false })
     } catch {
       /* handled below: what matters is whether the model really changed */
     }
-    if (this.currentModel !== plan.to) {
+    if (this.modelOf(sessionId) !== plan.to) {
       giveBack()
       return first
     }
-    this.emit('modelSwitched', { sessionId, from: plan.from, to: plan.to, configOptions })
+    this.emit('modelSwitched', { sessionId, from: plan.from, to: plan.to })
     return this.runPrompt(sessionId, first.toolCalls > 0 ? [...blocks, { type: 'text', text: RETRY_NOTE }] : blocks)
   }
 
@@ -254,25 +256,35 @@ export class Workspace extends EventEmitter<{ changed: []; turn: []; modelSwitch
   /** The model list, even before any conversation exists. */
   async configOptions(): Promise<SessionConfigOption[]> {
     return this.withScratchSession(async (_sessionId, response) => {
-      this.rememberModel(response.configOptions)
+      this.models.remember(response.configOptions)
       return response.configOptions ?? []
     })
   }
 
-  /** The model is a global Code Puppy setting; a live session is also rebound to it. */
+  /** With a chat: that chat's own model, nothing else moves. Without: the default, for new chats and chats that never chose. */
   async setModel(value: string, sessionId?: string): Promise<SessionConfigOption[]> {
-    const apply = async (target: string) => {
-      const context = await this.contextFor(target)
-      const response = await context.request('session/set_config_option', { sessionId: target, configId: MODEL_OPTION, value })
-      this.rememberModel(response.configOptions)
-      return response.configOptions
-    }
-    return sessionId ? apply(sessionId) : this.withScratchSession(apply)
+    return sessionId ? this.models.choose(sessionId, value) : this.models.setDefault(value)
   }
 
-  /** A throwaway session in the chat folder, always closed (and so deleted) afterwards. */
-  private async withScratchSession<T>(use: (sessionId: string, response: NewSessionResponse) => Promise<T>): Promise<T> {
-    const response = await this.newSession(this.chatDir)
+  /**
+   * Once in every running Code Puppy (the home one first, and it must work); a project's that fails is left
+   * as it is, since the one thing done here, setting the default model, is read again when it restarts.
+   */
+  private async inEveryProcess<T>(use: (scratchId: string) => Promise<T>): Promise<T[]> {
+    const results = [await this.withScratchSession(use)]
+    for (const folder of this.agents.folders().filter((folder) => resolve(folder) !== resolve(this.chatDir))) {
+      try {
+        results.push(await this.withScratchSession(use, folder))
+      } catch {
+        /* see above */
+      }
+    }
+    return results
+  }
+
+  /** A throwaway session (in the chat folder unless told otherwise), always closed (and so deleted) afterwards. */
+  private async withScratchSession<T>(use: (sessionId: string, response: NewSessionResponse) => Promise<T>, folder = this.chatDir): Promise<T> {
+    const response = await this.newSession(folder)
     try {
       return await use(response.sessionId, response)
     } finally {

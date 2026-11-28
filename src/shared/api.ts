@@ -50,9 +50,8 @@ export interface ModelFallbackSettings {
 export interface ModelSwitch {
   sessionId: string
   from: string
+  /** Now this chat's own model (for the rest of this run of the chat: reopened, it is back on the default). */
   to: string
-  /** The model list as it stands now, so the picker shows the new model. */
-  configOptions: SessionConfigOption[]
 }
 
 /** One of Code Puppy's agents. */
@@ -266,6 +265,8 @@ export interface OpenedSession {
   sessionId: string
   cwd: string
   kind: WorkspaceKind
+  /** The model this chat chose for itself; null when it runs on the default. */
+  model: string | null
   configOptions: SessionConfigOption[]
 }
 

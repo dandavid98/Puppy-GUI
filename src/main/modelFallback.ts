@@ -36,8 +36,11 @@ export class ModelFallback {
 
   constructor(
     private readonly settings: () => ModelFallbackSettings,
-    /** The model Code Puppy is using now: a switch only makes sense from the main one, and never twice in a row. */
-    private readonly currentModel: () => string | null,
+    /**
+     * The model a chat runs on: a switch only makes sense from the main one, and never twice in a row. A chat
+     * the user put on some other model has, in effect, switched automatic switching off for itself.
+     */
+    private readonly modelOf: (sessionId: string) => string | null,
     private readonly forward: (notification: SessionNotification) => void,
   ) {}
 
@@ -62,11 +65,11 @@ export class ModelFallback {
     this.held.delete(sessionId)
   }
 
-  private planFor({ update }: SessionNotification): FallbackPlan | null {
+  private planFor({ sessionId, update }: SessionNotification): FallbackPlan | null {
     if (update.sessionUpdate !== 'agent_message_chunk' || update.content.type !== 'text') return null
     const limit = usageLimitIn(update.content.text)
     if (!limit || !switchingHelps(limit)) return null
     const pair = fallbackPair(this.settings())
-    return pair && this.currentModel() === pair.main ? { from: pair.main, to: pair.secondary } : null
+    return pair && this.modelOf(sessionId) === pair.main ? { from: pair.main, to: pair.secondary } : null
   }
 }

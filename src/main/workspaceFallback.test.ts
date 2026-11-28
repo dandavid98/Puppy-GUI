@@ -25,16 +25,20 @@ type Turn = { says?: string; usesTool?: boolean; stopReason: PromptResponse['sto
 /**
  * A Code Puppy that works through `turns` in order, one per prompt: it streams what the turn says
  * (and starts a tool, if the turn uses one), then answers with the turn's stop reason.
+ *
+ * Its models work like the real one's: `model` is the process's (the default), and with Puppy's
+ * bootstrap a chat can have its own, which it confirms. Without the bootstrap it ignores that option.
  */
-function setup({ settings = ON, model = OPUS, turns, switchFails = false }: { settings?: ModelFallbackSettings; model?: string; turns: Turn[]; switchFails?: boolean }) {
+function setup({ settings = ON, model = OPUS, turns, switchFails = false, bootstrap = true }: { settings?: ModelFallbackSettings; model?: string; turns: Turn[]; switchFails?: boolean; bootstrap?: boolean }) {
   const dir = mkdtempSync(join(tmpdir(), 'puppy-fallback-'))
   const pool = new EventEmitter()
   const toWindow: SessionNotification[] = []
   const prompts: ContentBlock[][] = []
   const switches: ModelSwitch[] = []
-  let active = model
+  let processModel = model
+  const own = new Map<string, string>()
   let created = 0
-  const modelOptions = () => [{ id: 'model', name: 'Model', type: 'select' as const, currentValue: active, options: [] }]
+  const modelOptions = () => [{ id: 'model', name: 'Model', type: 'select' as const, currentValue: processModel, options: [] }]
   const say = (sessionId: string, text: string) => pool.emit('sessionUpdate', { sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } } })
 
   const context = {
@@ -42,7 +46,12 @@ function setup({ settings = ON, model = OPUS, turns, switchFails = false }: { se
       if (method === 'session/new') return { sessionId: `s${++created}`, configOptions: modelOptions() }
       if (method === 'session/set_config_option') {
         if (switchFails) throw new Error('no such model')
-        active = params.value as string
+        const { sessionId, configId, value } = params as { sessionId: string; configId: string; value: string }
+        if (configId === 'puppy_session_model' && bootstrap) {
+          own.set(sessionId, value)
+          return { configOptions: modelOptions(), _meta: { puppy: { model: value } } }
+        }
+        if (configId === 'model') processModel = value
         return { configOptions: modelOptions() }
       }
       if (method === 'session/prompt') {
@@ -57,9 +66,9 @@ function setup({ settings = ON, model = OPUS, turns, switchFails = false }: { se
     },
     notify: async () => undefined,
   }
-  Object.assign(pool, { forFolder: () => ({ context: async () => context }), cancelPermissions: () => undefined })
+  Object.assign(pool, { forFolder: () => ({ context: async () => context }), folders: () => [], cancelPermissions: () => undefined })
 
-  const fallback = new ModelFallback(() => settings, () => workspace.model, (notification) => toWindow.push(notification))
+  const fallback = new ModelFallback(() => settings, (sessionId) => workspace.modelOf(sessionId), (notification) => toWindow.push(notification))
   pool.on('sessionUpdate', (notification: SessionNotification) => fallback.route(notification))
   const workspace: Workspace = new Workspace(
     pool as unknown as AgentPool,
@@ -72,7 +81,9 @@ function setup({ settings = ON, model = OPUS, turns, switchFails = false }: { se
     fallback,
   )
   workspace.on('modelSwitched', (change) => switches.push(change))
-  return { workspace, toWindow, prompts, switches, activeModel: () => active, text: (n: number) => (prompts[n].at(-1) as { text: string }).text }
+  /** The model Code Puppy would really run a chat on. */
+  const runsOn = (sessionId: string) => own.get(sessionId) ?? processModel
+  return { workspace, toWindow, prompts, switches, runsOn, defaultModel: () => processModel, text: (n: number) => (prompts[n].at(-1) as { text: string }).text }
 }
 
 /** A chat that has already told the app which model it is on (the way the model list does at startup). */
@@ -91,11 +102,9 @@ describe('a turn that runs into the main model\'s usage limit', () => {
     const result = await env.workspace.prompt(sessionId, 'Please tidy the readme.')
 
     expect(result.stopReason).toBe('end_turn')
-    expect(env.activeModel()).toBe(SONNET)
-    expect(env.workspace.model).toBe(SONNET)
-    expect(env.switches).toHaveLength(1)
-    expect(env.switches[0]).toMatchObject({ sessionId, from: OPUS, to: SONNET })
-    expect(env.switches[0].configOptions[0]).toMatchObject({ currentValue: SONNET }) // so the picker can show it
+    expect(env.runsOn(sessionId)).toBe(SONNET)
+    expect(env.workspace.modelOf(sessionId)).toBe(SONNET)
+    expect(env.switches).toEqual([{ sessionId, from: OPUS, to: SONNET }])
     expect(heard(env)).toEqual(['Done.'])
     expect(env.prompts).toHaveLength(2)
     expect(env.text(1)).toBe('Please tidy the readme.') // the same request, asked again
@@ -111,21 +120,23 @@ describe('a turn that runs into the main model\'s usage limit', () => {
 
   it('gives the user the error as usual when the secondary model cannot be switched to', async () => {
     const env = setup({ switchFails: true, turns: [{ says: OPUS_SPENT, stopReason: 'refusal' }] })
-    const result = await env.workspace.prompt(await startChat(env), 'Hello')
+    const sessionId = await startChat(env)
+    const result = await env.workspace.prompt(sessionId, 'Hello')
     expect(result.stopReason).toBe('refusal')
     expect(heard(env)).toEqual([OPUS_SPENT])
     expect(env.prompts).toHaveLength(1)
     expect(env.switches).toEqual([])
-    expect(env.workspace.model).toBe(OPUS)
+    expect(env.workspace.modelOf(sessionId)).toBe(OPUS)
   })
 
   it('shows the second limit, and stops, when the secondary model is spent too', async () => {
     const env = setup({ turns: [{ says: OPUS_SPENT, stopReason: 'refusal' }, { says: SONNET_SPENT, stopReason: 'refusal' }] })
-    const result = await env.workspace.prompt(await startChat(env), 'Hello')
+    const sessionId = await startChat(env)
+    const result = await env.workspace.prompt(sessionId, 'Hello')
     expect(result.stopReason).toBe('refusal')
     expect(heard(env)).toEqual([SONNET_SPENT])
     expect(env.prompts).toHaveLength(2) // no third try, no ping-pong back to Opus
-    expect(env.workspace.model).toBe(SONNET)
+    expect(env.workspace.modelOf(sessionId)).toBe(SONNET)
   })
 
   it('stays on the secondary model for the next message, without asking Opus again', async () => {
@@ -135,6 +146,28 @@ describe('a turn that runs into the main model\'s usage limit', () => {
     await env.workspace.prompt(sessionId, 'two')
     expect(heard(env)).toEqual([SONNET_SPENT]) // and, from Sonnet, it is shown rather than swapped back
     expect(env.switches).toHaveLength(1)
+  })
+
+  it("switches that chat alone: the default, other chats and new chats stay on the main model", async () => {
+    const env = setup({ turns: [{ says: OPUS_SPENT, stopReason: 'refusal' }, { stopReason: 'end_turn' }] })
+    const spent = await startChat(env)
+    const other = (await env.workspace.create('chat')).sessionId
+    await env.workspace.prompt(spent, 'Hello')
+    const later = (await env.workspace.create('chat')).sessionId
+
+    expect(env.runsOn(spent)).toBe(SONNET)
+    expect(env.runsOn(other)).toBe(OPUS)
+    expect(env.runsOn(later)).toBe(OPUS)
+    expect(env.defaultModel()).toBe(OPUS)
+  })
+
+  it('still switches with a Code Puppy that cannot give a chat its own model (as it always did: for everything)', async () => {
+    const env = setup({ bootstrap: false, turns: [{ says: OPUS_SPENT, stopReason: 'refusal' }, { says: 'Done.', stopReason: 'end_turn' }] })
+    const sessionId = await startChat(env)
+    expect((await env.workspace.prompt(sessionId, 'Hello')).stopReason).toBe('end_turn')
+    expect(env.runsOn(sessionId)).toBe(SONNET)
+    expect(env.workspace.modelOf(sessionId)).toBe(SONNET)
+    expect(heard(env)).toEqual(['Done.'])
   })
 })
 
@@ -157,6 +190,21 @@ describe('when it should not switch', () => {
     await env.workspace.prompt(await startChat(env), 'Hello')
     expect(heard(env)).toEqual([OPUS_SPENT])
     expect(env.prompts).toHaveLength(1)
+  })
+
+  it('does nothing in a chat the user put on another model, and still works in the others', async () => {
+    const env = setup({ turns: [{ says: OPUS_SPENT, stopReason: 'refusal' }, { says: OPUS_SPENT, stopReason: 'refusal' }, { stopReason: 'end_turn' }] })
+    const chosen = await startChat(env)
+    const onDefault = (await env.workspace.create('chat')).sessionId
+    await env.workspace.setModel('gpt-5.6-sol', chosen)
+
+    // (the fake says Opus is spent whatever the chat runs on: what matters is that this chat is not on the main model)
+    expect((await env.workspace.prompt(chosen, 'Hello')).stopReason).toBe('refusal')
+    expect(heard(env)).toEqual([OPUS_SPENT])
+    expect(env.runsOn(chosen)).toBe('gpt-5.6-sol')
+
+    expect((await env.workspace.prompt(onDefault, 'Hello')).stopReason).toBe('end_turn')
+    expect(env.switches).toEqual([{ sessionId: onDefault, from: OPUS, to: SONNET }])
   })
 
   it('does nothing for a failure that is not a spent quota', async () => {

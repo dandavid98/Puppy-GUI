@@ -62,6 +62,11 @@ export class AgentPool extends EventEmitter<AgentEvents> {
     return agent
   }
 
+  /** The folders with a Code Puppy of their own (started, or starting). */
+  folders(): string[] {
+    return [...this.agents.keys()]
+  }
+
   /** The home agent's status, unless some project agent has failed: that is worth telling the user about. */
   get status(): AgentStatus {
     const failed = [...this.agents.values()].find((agent) => agent.status.state === 'error')

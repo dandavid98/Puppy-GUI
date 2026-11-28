@@ -3,6 +3,7 @@ import type { PreviewTarget } from '@shared/preview'
 import type { AgentStatus, Attachment, ChatFolder, McpState, ModelSwitch, OpenedSession, PermissionPrompt, QuotaSnapshot, SessionSummary, Settings, VpnStatus, WorkspaceKind } from '@shared/api'
 import type { PermissionLevel } from '@shared/permissions'
 import { previewForCompletedCall, previewForReply, type AutoPreview } from './autoPreview'
+import { switchingChange } from '@shared/modelFallback'
 import { titleFrom, titleSource } from '@shared/titles'
 import { modelName } from './models'
 import { addError, addNote, addUserMessage, applyUpdate, type ThreadItem } from './thread'
@@ -30,8 +31,10 @@ export interface AppState {
   permissions: PermissionPrompt[]
   /** The level a new chat starts with, chosen on the home screen before the chat exists. */
   newChatPermission: PermissionLevel
-  /** Code Puppy's model is global, so the picker is app-wide, not per thread. */
+  /** The model list, set on the default model: what new chats start on (each chat may choose its own, see Thread.model). */
   model: Extract<SessionConfigOption, { type: 'select' }> | null
+  /** A model chosen on the home screen for the chat about to start; null is the default. */
+  newChatModel: string | null
   /** Slash commands are the same for every session, so they're app-wide too. */
   commands: AvailableCommand[]
   settings: Settings | null
@@ -75,6 +78,9 @@ export type Action =
   | { type: 'modelSwitched'; change: ModelSwitch }
   | { type: 'permissionLevel'; sessionId: string; level: PermissionLevel }
   | { type: 'newChatPermission'; level: PermissionLevel }
+  /** A chat's own model (null: the default). `byUser`: the user chose it just now, rather than a reopened chat getting it back. */
+  | { type: 'chatModel'; sessionId: string; model: string | null; byUser: boolean }
+  | { type: 'newChatModel'; model: string | null }
   | { type: 'settings'; settings: Settings }
   | { type: 'preview'; target: PreviewTarget | null }
   | { type: 'pendingUrlHandled' }
@@ -103,6 +109,7 @@ export const initialState: AppState = {
   permissions: [],
   newChatPermission: 'standard',
   model: null,
+  newChatModel: null,
   commands: [],
   settings: null,
   preview: null,
@@ -117,6 +124,24 @@ export const initialState: AppState = {
   vpn: 'unknown',
   updateAvailable: false,
   notice: null,
+}
+
+/** The model shown for the open chat (its own, or the default), or for the chat about to start. */
+export function shownModel(state: AppState): string | null {
+  const thread = state.activeId ? state.threads[state.activeId] : undefined
+  return (thread ? thread.model : state.newChatModel) ?? (state.model?.currentValue as string | undefined) ?? null
+}
+
+/** Said in a chat whose new model turns automatic switching off (or back on) for it. */
+function switchingNote(state: AppState, thread: Thread, chosen: string | null): string | null {
+  const fallback = state.settings?.modelFallback
+  const defaultModel = (state.model?.currentValue as string | undefined) ?? null
+  const after = chosen ?? defaultModel
+  const change = fallback ? switchingChange(fallback, thread.model ?? defaultModel, after) : null
+  if (change === 'off' && fallback?.main && after) {
+    return `Automatic model switching is off in this chat while it uses ${modelName(state.model, after)}: it only switches from ${modelName(state.model, fallback.main)}.`
+  }
+  return change === 'on' ? 'Automatic model switching is back on in this chat.' : null
 }
 
 export function modelOption(options: SessionConfigOption[]): AppState['model'] {
@@ -216,11 +241,12 @@ export function reducer(state: AppState, action: Action): AppState {
         activeId: session.sessionId,
         view: 'conversation',
         draft: null, // it was sent (or the user went elsewhere): a later new chat starts empty
-        newChatPermission: 'standard', // the choice was for that chat; the next one starts standard again
+        newChatPermission: 'standard', // the choices were for that chat; the next one starts standard, on the default model
+        newChatModel: null,
         preview: null,
         mode: session.kind,
         folder: session.kind === 'code' ? session.cwd : state.folder,
-        model: modelOption(session.configOptions) ?? state.model,
+        model: state.model ?? modelOption(session.configOptions), // the list, should it not have arrived yet
       }
     }
     case 'activate': {
@@ -266,11 +292,17 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'config':
       return { ...state, model: modelOption(action.configOptions) ?? state.model }
     case 'modelSwitched': {
-      const { sessionId, from, to, configOptions } = action.change
-      const model = modelOption(configOptions) ?? state.model
-      const note = `${modelName(model, from)} has reached its usage limit, so Puppy switched to ${modelName(model, to)} and carried on. You can switch back from the model menu once your limit resets.`
-      return { ...patchThread(state, sessionId, (thread) => ({ items: addNote(thread.items, note) })), model }
+      const { sessionId, from, to } = action.change
+      const note = `${modelName(state.model, from)} has reached its usage limit, so Puppy switched this chat to ${modelName(state.model, to)} and carried on. New chats still start on ${modelName(state.model, from)}.`
+      return patchThread(state, sessionId, (thread) => ({ model: to, items: addNote(thread.items, note) }))
     }
+    case 'chatModel':
+      return patchThread(state, action.sessionId, (thread) => {
+        const note = action.byUser ? switchingNote(state, thread, action.model) : null
+        return { model: action.model, items: note ? addNote(thread.items, note) : thread.items }
+      })
+    case 'newChatModel':
+      return { ...state, newChatModel: action.model }
     case 'permissionLevel':
       return patchThread(state, action.sessionId, () => ({ permission: action.level }))
     case 'newChatPermission':

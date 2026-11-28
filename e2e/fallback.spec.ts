@@ -77,10 +77,10 @@ test('a chat says so when Puppy switched models for it, in the models\' own name
     sessionId,
     from: 'claude-opus-5-5',
     to: 'claude-sonnet-5-5',
-    configOptions: options,
   })
   const log = page().getByRole('log', { name: 'Conversation' })
-  await expect(log.getByRole('status').filter({ hasText: 'has reached its usage limit' })).toContainText('Puppy switched to')
-  await expect(log.getByRole('status').filter({ hasText: 'has reached its usage limit' })).toContainText('You can switch back from the model menu')
+  await expect(log.getByRole('status').filter({ hasText: 'has reached its usage limit' })).toContainText('Puppy switched this chat to')
+  await expect(log.getByRole('status').filter({ hasText: 'has reached its usage limit' })).toContainText('New chats still start on')
+  await expect(page().getByRole('button', { name: /^Model:/ })).toHaveAccessibleName(/Sonnet/i) // that chat's picker shows its new model
   await shot(page(), 'fallback-note')
 })

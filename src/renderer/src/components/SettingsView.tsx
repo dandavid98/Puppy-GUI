@@ -3,6 +3,8 @@ import { FileText, Monitor, Moon, RotateCw, Sun, Download, type LucideIcon } fro
 import type { AppInfo, QuotaSnapshot, Settings, ThemePreference, UpdateOutcome } from '@shared/api'
 import { prettyPath } from '../lib/format'
 import type { AppState } from '../state/store'
+import { withMain } from '@shared/modelFallback'
+import type { ModelFallbackSettings } from '@shared/api'
 import { FallbackSettings } from './FallbackSettings'
 import { ModelPicker } from './ModelPicker'
 import { BUTTON, Page, Section } from './ui/Page'
@@ -67,6 +69,16 @@ function ThemePicker({ value, onChange }: { value: ThemePreference; onChange: (t
 
 export function SettingsView({ settings, model, quota, onRefreshQuota, modelError, onRetryModels, loadAppInfo, onUpdate, onModel, onRevealLog, onRestartAgent, onUpdateApp }: Props) {
   const [name, setName] = useState(settings.displayName)
+
+  // The main model is the default one, that new chats start on: choosing either is choosing both.
+  const chooseDefault = (value: string) => {
+    onModel(value)
+    if (settings.modelFallback.enabled) onUpdate({ modelFallback: withMain(settings.modelFallback, value) })
+  }
+  const changeFallback = (next: ModelFallbackSettings) => {
+    onUpdate({ modelFallback: next })
+    if (next.enabled && next.main && next.main !== model?.currentValue) onModel(next.main)
+  }
   const [info, setInfo] = useState<AppInfo | null>(null)
   const [updating, setUpdating] = useState(false)
   const [updateNote, setUpdateNote] = useState<string | null>(null)
@@ -110,12 +122,12 @@ export function SettingsView({ settings, model, quota, onRefreshQuota, modelErro
           <ThemePicker value={settings.theme} onChange={(theme) => onUpdate({ theme })} />
         </Section>
 
-        <Section title="Model" description="Code Puppy uses this model everywhere, including in the terminal.">
+        <Section title="Model" description="New chats start on this model, here and in the terminal. A chat can still use another one from its own model menu.">
           {model ? (
             <ModelPicker
               model={model}
               value={undefined}
-              onChange={onModel}
+              onChange={chooseDefault}
               placement="bottom"
               variant="field"
               quota={quota}
@@ -138,7 +150,7 @@ export function SettingsView({ settings, model, quota, onRefreshQuota, modelErro
         </Section>
 
         <Section title="Usage limits" description="What Puppy does when a model runs out of usage in the middle of a request.">
-          <FallbackSettings fallback={settings.modelFallback} model={model} onChange={(modelFallback) => onUpdate({ modelFallback })} />
+          <FallbackSettings fallback={settings.modelFallback} model={model} onChange={changeFallback} />
         </Section>
 
         <Section title="Thinking process">

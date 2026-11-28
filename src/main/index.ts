@@ -124,7 +124,7 @@ void app.whenReady().then(() => {
   const levels = new PermissionLevels()
   const agents = new AgentPool((folder) => new PuppyAgent(locateCodePuppy, folder, info.logPath, info.version, () => agentChosen, (sessionId) => levels.get(sessionId)), chatDir)
   const index = new SessionIndex(join(data, 'sessions.json'))
-  const fallback = new ModelFallback(() => settings.get().modelFallback, () => workspace.model, (notification) => mainWindow?.webContents.send(Push.sessionUpdate, notification))
+  const fallback = new ModelFallback(() => settings.get().modelFallback, (sessionId) => workspace.modelOf(sessionId), (notification) => mainWindow?.webContents.send(Push.sessionUpdate, notification))
   const workspace: Workspace = new Workspace(agents, index, settings, chatDir, () => readContextLengths(), () => mcp.sessionServers(), levels, fallback)
   const organizer = new Organizer(index, new FolderStore(join(data, 'folders.json')))
 

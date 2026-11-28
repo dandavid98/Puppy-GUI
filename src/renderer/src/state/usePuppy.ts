@@ -83,7 +83,8 @@ export function usePuppy() {
     loadModels()
   }, [state.status.state, refreshSessions, loadModels])
 
-  const { activeId, mode, folder, threads, pendingUrl, newChatPermission } = state
+  const { activeId, mode, folder, threads, pendingUrl, newChatPermission, newChatModel } = state
+  const defaultModel = (state.model?.currentValue as string | undefined) ?? null
   const activeRef = useRef(activeId)
   activeRef.current = activeId
 
@@ -98,6 +99,15 @@ export function usePuppy() {
     })
   }, [pendingUrl])
 
+  /** What the user chose on the home screen, for the chat that has just started. */
+  const applyHomeChoices = async (sessionId: string) => {
+    if (newChatPermission !== 'standard') dispatch({ type: 'permissionLevel', sessionId, level: await api.setPermissionLevel(sessionId, newChatPermission) })
+    if (newChatModel) {
+      await api.setModel(newChatModel, sessionId)
+      dispatch({ type: 'chatModel', sessionId, model: newChatModel, byUser: false }) // chosen before the chat existed: nothing to tell it
+    }
+  }
+
   const send = useCallback(
     async (text: string, attachments: Attachment[] = []) => {
       dispatch({ type: 'notice', message: null })
@@ -107,16 +117,14 @@ export function usePuppy() {
           const session = await api.newSession(mode, folder ?? undefined)
           dispatch({ type: 'opened', session })
           sessionId = session.sessionId
-          if (newChatPermission !== 'standard') {
-            try {
-              dispatch({ type: 'permissionLevel', sessionId, level: await api.setPermissionLevel(sessionId, newChatPermission) })
-            } catch (error) {
-              // Never run a chat looser or stricter than the user asked for: show their message, and why it was not sent.
-              dispatch({ type: 'sent', sessionId, text, attachments, at: new Date().toISOString() })
-              dispatch({ type: 'finished', sessionId, error: `${readableError(error)} Your message was not sent.` })
-              void refreshSessions()
-              return
-            }
+          try {
+            await applyHomeChoices(sessionId)
+          } catch (error) {
+            // Never run a chat other than the user set it up (looser, stricter, another model): show their message, and why it was not sent.
+            dispatch({ type: 'sent', sessionId, text, attachments, at: new Date().toISOString() })
+            dispatch({ type: 'finished', sessionId, error: `${readableError(error)} Your message was not sent.` })
+            void refreshSessions()
+            return
           }
         }
         dispatch({ type: 'sent', sessionId, text, attachments, at: new Date().toISOString() })
@@ -128,17 +136,17 @@ export function usePuppy() {
       }
       void refreshSessions()
     },
-    [activeId, mode, folder, newChatPermission, refreshSessions],
+    [activeId, mode, folder, newChatPermission, newChatModel, refreshSessions],
   )
 
   const open = useCallback(
     async (summary: SessionSummary) => {
       if (threads[summary.sessionId]) return dispatch({ type: 'activate', sessionId: summary.sessionId })
       // Create the thread first: Code Puppy replays history while session/load is in flight.
-      dispatch({ type: 'opened', session: { ...summary, permission: 'standard', configOptions: [] }, contextTokens: summary.contextTokens, replaying: true })
+      dispatch({ type: 'opened', session: { ...summary, permission: 'standard', model: null, configOptions: [] }, contextTokens: summary.contextTokens, replaying: true })
       try {
         const session = await api.loadSession(summary.sessionId, summary.cwd)
-        dispatch({ type: 'config', configOptions: session.configOptions })
+        dispatch({ type: 'chatModel', sessionId: summary.sessionId, model: session.model, byUser: false })
         dispatch({ type: 'permissionLevel', sessionId: summary.sessionId, level: session.permission })
         dispatch({ type: 'replayed', sessionId: summary.sessionId })
       } catch (error) {
@@ -194,8 +202,16 @@ export function usePuppy() {
         activeId
           ? guard(async () => dispatch({ type: 'permissionLevel', sessionId: activeId, level: await api.setPermissionLevel(activeId, level) }))
           : dispatch({ type: 'newChatPermission', level }),
-      setModel: (value: string) =>
-        guard(async () => dispatch({ type: 'config', configOptions: await api.setModel(value, activeId ?? undefined) })),
+      /** The model menu by the message box: that chat's own model, or the next new chat's. Never the default. */
+      setChatModel: (value: string) =>
+        activeId
+          ? guard(async () => {
+              await api.setModel(value, activeId)
+              dispatch({ type: 'chatModel', sessionId: activeId, model: value, byUser: true })
+            })
+          : dispatch({ type: 'newChatModel', model: value === defaultModel ? null : value }),
+      /** Settings: the model new chats start on, and chats that never chose run on. */
+      setDefaultModel: (value: string) => guard(async () => dispatch({ type: 'config', configOptions: await api.setModel(value) })),
       renameSession: (sessionId: string, title: string) =>
         guard(async () => {
           await api.renameSession(sessionId, title)
@@ -263,7 +279,7 @@ export function usePuppy() {
       previewConnection: api.previewConnection,
       openConnectionRenewal: api.openConnectionRenewal,
     }
-  }, [send, open, guard, activeId, refreshSessions, loadModels])
+  }, [send, open, guard, activeId, defaultModel, refreshSessions, loadModels])
 
   return { state, actions }
 }

@@ -16,6 +16,8 @@ export interface SessionMeta {
   folderId?: string
   /** How much Code Puppy may do in it without asking; absent is standard. Kept so reopening a chat restores it. */
   permission?: PermissionLevel
+  /** The model the user chose for this chat; absent, it follows the default. Kept so reopening the chat restores it. */
+  model?: string
 }
 
 /**

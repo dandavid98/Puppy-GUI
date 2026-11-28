@@ -14,6 +14,7 @@ import { Sidebar } from './components/Sidebar'
 import { ThreadView } from './components/ThreadView'
 import { recentFolders } from './lib/format'
 import { usePuppy } from './state/usePuppy'
+import { shownModel } from './state/store'
 
 export function App() {
   const { state, actions } = usePuppy()
@@ -49,15 +50,16 @@ export function App() {
   const modelPicker = (
     <ModelPicker
       model={state.model}
-      value={undefined}
-      onChange={(value) => void actions.setModel(value)}
+      value={shownModel(state) ?? undefined}
+      onChange={(value) => void actions.setChatModel(value)}
       quota={state.quota}
       onOpen={() => void actions.refreshQuota()}
     />
   )
   const permissionPicker = <PermissionPicker value={thread ? thread.permission : state.newChatPermission} onChange={actions.setPermission} />
-  const contextLength = state.modelContexts[state.model?.currentValue ?? ''] ?? DEFAULT_CONTEXT_LENGTH
-  const contextMeter = <ContextMeter used={thread?.contextTokens ?? null} total={contextLength} model={state.model?.currentValue} />
+  const chatModel = shownModel(state)
+  const contextLength = state.modelContexts[chatModel ?? ''] ?? DEFAULT_CONTEXT_LENGTH
+  const contextMeter = <ContextMeter used={thread?.contextTokens ?? null} total={contextLength} model={chatModel ?? undefined} />
 
   const main = () => {
     if (state.view === 'agents') {
@@ -96,7 +98,7 @@ export function App() {
           onRetryModels={actions.retryModels}
           loadAppInfo={actions.loadAppInfo}
           onUpdate={(patch) => void actions.updateSettings(patch)}
-          onModel={(value) => void actions.setModel(value)}
+          onModel={(value) => void actions.setDefaultModel(value)}
           onRevealLog={actions.revealLog}
           onRestartAgent={actions.restartAgent}
           onUpdateApp={actions.updateApp}

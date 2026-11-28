@@ -1,10 +1,10 @@
 import type { SessionConfigOption, SessionNotification } from '@agentclientprotocol/sdk'
 import type { Attachment, OpenedSession, SessionSummary, Settings } from '@shared/api'
 import { describe, expect, it } from 'vitest'
-import { initialState, modelOption, reducer, type Action, type AppState } from './store'
+import { initialState, modelOption, reducer, shownModel, type Action, type AppState } from './store'
 
 const settings = (autoPreview: boolean): Settings => ({ theme: 'system', displayName: 'Dan', smartTitles: true, autoPreview, thinkingMode: false, defaultAgent: null, modelFallback: { enabled: false, main: null, secondary: null } })
-const session: OpenedSession = { sessionId: 's1', cwd: '/work/app', kind: 'code', permission: 'standard', configOptions: [] }
+const session: OpenedSession = { sessionId: 's1', cwd: '/work/app', kind: 'code', permission: 'standard', model: null, configOptions: [] }
 
 const AT = '2026-11-25T10:00:00.000Z'
 const run = (state: AppState, ...actions: Action[]) => actions.reduce(reducer, state)
@@ -211,28 +211,75 @@ describe('permission levels', () => {
   })
 })
 
-describe('a switch of model after a usage limit', () => {
-  const models = (current: string): SessionConfigOption[] => [
-    { id: 'model', name: 'Model', category: 'model', type: 'select', currentValue: current, options: [
-      { value: 'claude-opus-5-5', name: 'Claude Opus 5.5' },
-      { value: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' },
-    ] },
-  ]
-  const change = { sessionId: 's1', from: 'claude-opus-5-5', to: 'claude-sonnet-5-5', configOptions: models('claude-sonnet-5-5') }
+const OPUS = 'claude-opus-5-5'
+const SONNET = 'claude-sonnet-5-5'
+const SOL = 'gpt-5.6-sol'
+const models = (current: string): SessionConfigOption[] => [
+  { id: 'model', name: 'Model', category: 'model', type: 'select', currentValue: current, options: [
+    { value: OPUS, name: 'Claude Opus 5.5' },
+    { value: SONNET, name: 'Claude Sonnet 5.5' },
+    { value: SOL, name: 'GPT 5.6 Sol' },
+  ] },
+]
+/** The app with its model list in, on Opus by default, and automatic switching from Opus to Sonnet. */
+const withModels: AppState = {
+  ...initialState,
+  model: modelOption(models(OPUS)),
+  settings: { ...settings(false), modelFallback: { enabled: true, main: OPUS, secondary: SONNET } },
+}
+const lastNote = (state: AppState) => {
+  const item = state.threads.s1.items.at(-1)
+  return item && item.type === 'note' ? item.text : null
+}
 
-  it('shows the new model in the picker, and tells that chat what happened in the models\' own names', () => {
-    const state = run({ ...initialState, model: modelOption(models('claude-opus-5-5')) }, { type: 'opened', session }, { type: 'modelSwitched', change })
-    expect(state.model?.currentValue).toBe('claude-sonnet-5-5')
-    const note = state.threads.s1.items.at(-1)
-    expect(note).toMatchObject({ type: 'note' })
-    expect(note && 'text' in note && note.text).toBe(
-      'Claude Opus 5.5 has reached its usage limit, so Puppy switched to Claude Sonnet 5.5 and carried on. You can switch back from the model menu once your limit resets.',
-    )
+describe('which model a chat is on', () => {
+  it('shows each chat its own model, the default for one that never chose, and the default on the home screen', () => {
+    const state = run(withModels, { type: 'opened', session }, { type: 'chatModel', sessionId: 's1', model: SOL, byUser: true }, { type: 'opened', session: { ...session, sessionId: 's2' } })
+    expect(shownModel(state)).toBe(OPUS) // s2, open now, never chose
+    expect(shownModel(run(state, { type: 'activate', sessionId: 's1' }))).toBe(SOL)
+    expect(shownModel(run(state, { type: 'mode', mode: 'chat' }))).toBe(OPUS)
+    expect(state.model?.currentValue).toBe(OPUS) // the default never moved
+  })
+
+  it('uses a model chosen on the home screen for the chat about to start only', () => {
+    const chosen = run(withModels, { type: 'newChatModel', model: SOL })
+    expect(shownModel(chosen)).toBe(SOL)
+    const started = run(chosen, { type: 'opened', session })
+    expect(started.newChatModel).toBeNull()
+    expect(shownModel(run(started, { type: 'mode', mode: 'chat' }))).toBe(OPUS)
+  })
+
+  it('tells a chat put on another model that automatic switching is off in it, and when it is back on', () => {
+    const off = run(withModels, { type: 'opened', session }, { type: 'chatModel', sessionId: 's1', model: SOL, byUser: true })
+    expect(lastNote(off)).toBe('Automatic model switching is off in this chat while it uses GPT 5.6 Sol: it only switches from Claude Opus 5.5.')
+    const on = run(off, { type: 'chatModel', sessionId: 's1', model: OPUS, byUser: true })
+    expect(lastNote(on)).toBe('Automatic model switching is back on in this chat.')
+  })
+
+  it('says nothing when switching is not set up, between the two models, or when a reopened chat gets its model back', () => {
+    const plain = { ...withModels, settings: settings(false) }
+    expect(lastNote(run(plain, { type: 'opened', session }, { type: 'chatModel', sessionId: 's1', model: SOL, byUser: true }))).toBeNull()
+    expect(lastNote(run(withModels, { type: 'opened', session }, { type: 'chatModel', sessionId: 's1', model: SONNET, byUser: true }))).toBeNull()
+    const reopened = run(withModels, { type: 'opened', session }, { type: 'chatModel', sessionId: 's1', model: SOL, byUser: false })
+    expect(lastNote(reopened)).toBeNull()
+    expect(shownModel(reopened)).toBe(SOL)
+  })
+})
+
+describe('a switch of model after a usage limit', () => {
+  const change = { sessionId: 's1', from: OPUS, to: SONNET }
+
+  it("puts that chat alone on the new model, and tells it so in the models' own names", () => {
+    const state = run(withModels, { type: 'opened', session }, { type: 'modelSwitched', change })
+    expect(shownModel(state)).toBe(SONNET)
+    expect(state.model?.currentValue).toBe(OPUS) // new chats still start on the main model
+    expect(lastNote(state)).toBe('Claude Opus 5.5 has reached its usage limit, so Puppy switched this chat to Claude Sonnet 5.5 and carried on. New chats still start on Claude Opus 5.5.')
   })
 
   it('leaves other chats alone, and falls back to the ids when the list is not known', () => {
-    const state = run(initialState, { type: 'opened', session }, { type: 'opened', session: { ...session, sessionId: 's2' } }, { type: 'modelSwitched', change: { ...change, configOptions: [] } })
+    const state = run(initialState, { type: 'opened', session }, { type: 'opened', session: { ...session, sessionId: 's2' } }, { type: 'modelSwitched', change })
     expect(state.threads.s2.items).toEqual([])
-    expect(state.threads.s1.items.at(-1)).toMatchObject({ text: expect.stringContaining('claude-opus-5-5 has reached its usage limit') })
+    expect(state.threads.s2.model).toBeNull()
+    expect(lastNote(state)).toContain('claude-opus-5-5 has reached its usage limit')
   })
 })
