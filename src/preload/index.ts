@@ -21,6 +21,7 @@ const api: PuppyApi = {
   listSessions: () => ipcRenderer.invoke(Invoke.listSessions),
   newSession: (kind, cwd) => ipcRenderer.invoke(Invoke.newSession, kind, cwd),
   loadSession: (sessionId, cwd) => ipcRenderer.invoke(Invoke.loadSession, sessionId, cwd),
+  setPermissionLevel: (sessionId, level) => ipcRenderer.invoke(Invoke.setPermissionLevel, sessionId, level),
   renameSession: (sessionId, title) => ipcRenderer.invoke(Invoke.renameSession, sessionId, title),
   deleteSession: (sessionId) => ipcRenderer.invoke(Invoke.deleteSession, sessionId),
   pinSession: (sessionId, pinned) => ipcRenderer.invoke(Invoke.pinSession, sessionId, pinned),
@@ -67,6 +68,7 @@ const api: PuppyApi = {
   onSessionsChanged: (listener) => subscribe(Push.sessionsChanged, listener),
   onQuota: (listener) => subscribe(Push.quota, listener),
   onVpnStatus: (listener) => subscribe(Push.vpn, listener),
+  onModelSwitched: (listener) => subscribe(Push.modelSwitched, listener),
   onUpdateAvailable: (listener) => subscribe(Push.updateAvailable, listener),
 }
 

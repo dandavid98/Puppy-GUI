@@ -20,6 +20,8 @@ interface Props {
   icon?: ReactNode
   /** Visual style of the trigger: quiet (inline in toolbars) or field (forms). */
   variant?: 'quiet' | 'field'
+  /** Shown on the trigger while `value` is empty (nothing chosen yet). */
+  placeholder?: string
   /** Called each time the menu opens. */
   onOpen?: () => void
   /** Small note under the list (e.g. quota summary). */
@@ -34,7 +36,7 @@ const TRIGGER = {
 } as const
 
 /** Accessible listbox dropdown in the app's own style (replaces native <select>). */
-export function Select({ label, value, options, onChange, placement = 'bottom', align = 'start', icon, variant = 'quiet', onOpen, footer }: Props) {
+export function Select({ label, value, options, onChange, placement = 'bottom', align = 'start', icon, variant = 'quiet', placeholder, onOpen, footer }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -46,6 +48,7 @@ export function Select({ label, value, options, onChange, placement = 'bottom', 
   const id = useId()
   const searchable = options.length > SEARCH_THRESHOLD
   const selected = options.find((option) => option.value === value)
+  const shown = selected?.label ?? (value === '' ? (placeholder ?? '') : value)
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -108,7 +111,7 @@ export function Select({ label, value, options, onChange, placement = 'bottom', 
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={`${label}: ${selected?.label ?? value}`}
+        aria-label={`${label}: ${shown}`}
         onClick={() => (open ? close() : openMenu())}
         onKeyDown={(event) => {
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -119,7 +122,7 @@ export function Select({ label, value, options, onChange, placement = 'bottom', 
         className={`inline-flex max-w-full items-center gap-1.5 ${TRIGGER[variant]}`}
       >
         {icon}
-        <span className="truncate">{selected?.label ?? value}</span>
+        <span className="truncate">{shown}</span>
         <ChevronDown size={14} aria-hidden className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 

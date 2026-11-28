@@ -1,9 +1,11 @@
 import type { AvailableCommand, SessionConfigOption, SessionNotification } from '@agentclientprotocol/sdk'
 import type { PreviewTarget } from '@shared/preview'
-import type { AgentStatus, Attachment, ChatFolder, McpState, OpenedSession, PermissionPrompt, QuotaSnapshot, SessionSummary, Settings, VpnStatus, WorkspaceKind } from '@shared/api'
+import type { AgentStatus, Attachment, ChatFolder, McpState, ModelSwitch, OpenedSession, PermissionPrompt, QuotaSnapshot, SessionSummary, Settings, VpnStatus, WorkspaceKind } from '@shared/api'
+import type { PermissionLevel } from '@shared/permissions'
 import { previewForCompletedCall, previewForReply, type AutoPreview } from './autoPreview'
 import { titleFrom, titleSource } from '@shared/titles'
-import { addError, addUserMessage, applyUpdate, type ThreadItem } from './thread'
+import { modelName } from './models'
+import { addError, addNote, addUserMessage, applyUpdate, type ThreadItem } from './thread'
 
 export interface Thread extends OpenedSession {
   items: ThreadItem[]
@@ -26,6 +28,8 @@ export interface AppState {
   mode: WorkspaceKind
   folder: string | null
   permissions: PermissionPrompt[]
+  /** The level a new chat starts with, chosen on the home screen before the chat exists. */
+  newChatPermission: PermissionLevel
   /** Code Puppy's model is global, so the picker is app-wide, not per thread. */
   model: Extract<SessionConfigOption, { type: 'select' }> | null
   /** Slash commands are the same for every session, so they're app-wide too. */
@@ -68,6 +72,9 @@ export type Action =
   | { type: 'sent'; sessionId: string; text: string; attachments: Attachment[]; /** When it was sent (ISO), for the sidebar row. */ at: string }
   | { type: 'finished'; sessionId: string; error?: string; contextTokens?: number | null }
   | { type: 'config'; configOptions: SessionConfigOption[] }
+  | { type: 'modelSwitched'; change: ModelSwitch }
+  | { type: 'permissionLevel'; sessionId: string; level: PermissionLevel }
+  | { type: 'newChatPermission'; level: PermissionLevel }
   | { type: 'settings'; settings: Settings }
   | { type: 'preview'; target: PreviewTarget | null }
   | { type: 'pendingUrlHandled' }
@@ -94,6 +101,7 @@ export const initialState: AppState = {
   mode: 'chat',
   folder: null,
   permissions: [],
+  newChatPermission: 'standard',
   model: null,
   commands: [],
   settings: null,
@@ -208,6 +216,7 @@ export function reducer(state: AppState, action: Action): AppState {
         activeId: session.sessionId,
         view: 'conversation',
         draft: null, // it was sent (or the user went elsewhere): a later new chat starts empty
+        newChatPermission: 'standard', // the choice was for that chat; the next one starts standard again
         preview: null,
         mode: session.kind,
         folder: session.kind === 'code' ? session.cwd : state.folder,
@@ -256,6 +265,16 @@ export function reducer(state: AppState, action: Action): AppState {
     }
     case 'config':
       return { ...state, model: modelOption(action.configOptions) ?? state.model }
+    case 'modelSwitched': {
+      const { sessionId, from, to, configOptions } = action.change
+      const model = modelOption(configOptions) ?? state.model
+      const note = `${modelName(model, from)} has reached its usage limit, so Puppy switched to ${modelName(model, to)} and carried on. You can switch back from the model menu once your limit resets.`
+      return { ...patchThread(state, sessionId, (thread) => ({ items: addNote(thread.items, note) })), model }
+    }
+    case 'permissionLevel':
+      return patchThread(state, action.sessionId, () => ({ permission: action.level }))
+    case 'newChatPermission':
+      return { ...state, newChatPermission: action.level }
     case 'settings':
       return { ...state, settings: action.settings }
     case 'preview':

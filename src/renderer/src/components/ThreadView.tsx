@@ -11,6 +11,7 @@ interface Props {
   /** Thinking mode: show Code Puppy's work opened up, as the terminal does. */
   showWork: boolean
   permissions: PermissionPrompt[]
+  permissionPicker: ReactNode
   modelPicker: ReactNode
   contextMeter: ReactNode
   commands: AvailableCommand[]
@@ -22,7 +23,7 @@ interface Props {
 
 const STICK_THRESHOLD = 120
 
-export function ThreadView({ thread, showWork, permissions, modelPicker, contextMeter, commands, onSend, onStop, onChooseFolder, onAnswer }: Props) {
+export function ThreadView({ thread, showWork, permissions, permissionPicker, modelPicker, contextMeter, commands, onSend, onStop, onChooseFolder, onAnswer }: Props) {
   const [draft, setDraft] = useState('')
   const scroller = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
@@ -64,7 +65,7 @@ export function ThreadView({ thread, showWork, permissions, modelPicker, context
           {showThinking && permissions.length === 0 && <Thinking />}
         </div>
       </div>
-      <div className="mx-auto w-full max-w-3xl px-6 pb-5">
+      <div className="mx-auto w-full max-w-4xl px-6 pb-5">
         <Composer
           value={draft}
           onChange={setDraft}
@@ -75,6 +76,7 @@ export function ThreadView({ thread, showWork, permissions, modelPicker, context
           autoFocus
           placeholder="Reply to Code Puppy..."
           folder={thread.kind === 'code' ? { path: thread.cwd, onChoose: onChooseFolder } : undefined}
+          permissionPicker={permissionPicker}
           modelPicker={modelPicker}
           contextMeter={contextMeter}
         />

@@ -1,7 +1,9 @@
 import { pythonNextTo } from '../codePuppyPython'
 
 /**
- * Starting Code Puppy for ACP, with servers added in Puppy actually reaching the model.
+ * Starting Code Puppy for ACP, with two things Code Puppy's ACP agent lacks.
+ *
+ * 1. Servers added in Puppy actually reaching the model.
  *
  * Code Puppy's ACP agent attaches the MCP servers a client passes in `session/new`
  * to `agent._mcp_servers`, but its agent builder takes toolsets only from Code
@@ -10,7 +12,19 @@ import { pythonNextTo } from '../codePuppyPython'
  * Code Puppy's own extension seam for adjusting an agent's toolsets, wrapped per
  * agent so classes that override it (Confluence) are covered too. Each server is
  * also wrapped so an unreachable one is left out instead of failing the chat
- * (Code Puppy shields its own servers the same way). Then it runs Code Puppy's
+ * (Code Puppy shields its own servers the same way).
+ *
+ * 2. A permission level per chat (ACP `session/set_mode`: "ask", "standard", "full").
+ *
+ * Code Puppy asks before file changes and shell commands unless yolo mode is on,
+ * a setting for the whole process and shared with the terminal, and its ACP agent
+ * ignores `session/set_mode`. Here the yolo check answers per chat instead: "ask"
+ * is yolo off, "full" is yolo on, and "standard" is Code Puppy exactly as the user
+ * has set it up (a chat Puppy never sets is standard). The agent echoes the level
+ * back, so Puppy can tell it took effect rather than assume. Nothing is written
+ * to the user's config.
+ *
+ * Then it runs Code Puppy's
  * entry point exactly as the `code-puppy` launcher does.
  *
  * Only Puppy's processes run this: the terminal, its config and its servers are
@@ -91,6 +105,68 @@ try:
 except Exception as error:
     patched = []
     print(f"Puppy: MCP servers added in Puppy are unavailable ({error!r})", file=sys.stderr)
+
+# What Puppy may ask a session to be (ACP session/set_mode). "standard" is Code Puppy as the user has set it up.
+PERMISSION_MODES = ("ask", "standard", "full")
+ACP_STATE_MODULES = ("code_puppy_core_plugins.acp.state", "code_puppy.plugins.acp.state")
+ACP_AGENT_MODULES = ("code_puppy_core_plugins.acp.agent", "code_puppy.plugins.acp.agent")
+
+def first_module(names):
+    for name in names:
+        try:
+            return importlib.import_module(name)
+        except ImportError:
+            pass
+    raise ImportError("Code Puppy's ACP plugin was not found")
+
+def install_permission_levels():
+    import code_puppy.config as config
+
+    original = config.get_yolo_mode
+    if hasattr(original, "puppy_levels"):
+        return  # already installed
+    state = first_module(ACP_STATE_MODULES)
+    agent_class = first_module(ACP_AGENT_MODULES).CodePuppyAgent
+    levels = {}  # session id -> "ask" | "full"; a session not in here is "standard"
+
+    def get_yolo_mode():
+        # Code Puppy asks before file changes and shell commands unless yolo mode is on. Which run is this? The one
+        # whose session the current task belongs to (a ContextVar, so two chats running at once never mix up).
+        level = levels.get(state.get_active_session_id())
+        if level == "ask":
+            return False
+        if level == "full":
+            return True
+        return original()
+
+    get_yolo_mode.puppy_levels = levels
+    set_mode = agent_class.set_session_mode
+
+    async def set_session_mode(self, mode_id, session_id, **kwargs):
+        response = await set_mode(self, mode_id, session_id, **kwargs)
+        if mode_id not in PERMISSION_MODES:
+            return response
+        if mode_id == "standard":
+            levels.pop(session_id, None)
+        else:
+            levels[session_id] = mode_id
+        # Say so, so Puppy can tell a Code Puppy that applied the level from one that quietly ignored it.
+        meta = {**(getattr(response, "field_meta", None) or {}), "puppy": {"permission": mode_id}}
+        return type(response).model_validate({"_meta": meta})
+
+    config.get_yolo_mode = get_yolo_mode
+    for module in list(sys.modules.values()):  # modules that already imported the original by name
+        try:
+            if getattr(module, "get_yolo_mode", None) is original:
+                module.get_yolo_mode = get_yolo_mode
+        except Exception:
+            pass
+    agent_class.set_session_mode = set_session_mode
+
+try:
+    install_permission_levels()
+except Exception as error:
+    print(f"Puppy: permission levels are unavailable ({error!r})", file=sys.stderr)
 `
 
 export const ACP_BOOTSTRAP = `${ACP_PATCH}

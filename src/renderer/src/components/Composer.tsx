@@ -19,6 +19,8 @@ interface Props {
   commands: AvailableCommand[]
   /** Code mode only: the project folder chip. */
   folder?: { path: string | null; onChoose: () => void }
+  /** How much Code Puppy may do without asking; sits right after the folder. */
+  permissionPicker?: ReactNode
   modelPicker?: ReactNode
   /** Sits just left of the model picker. */
   contextMeter?: ReactNode
@@ -29,7 +31,7 @@ const MAX_HEIGHT = 320
 const ICON_BUTTON = 'grid size-8 place-items-center rounded-lg text-muted hover:bg-raised hover:text-ink'
 
 export function Composer(props: Props) {
-  const { value, onChange, onSend, onStop, running, placeholder, commands, folder, modelPicker, contextMeter, autoFocus } = props
+  const { value, onChange, onSend, onStop, running, placeholder, commands, folder, permissionPicker, modelPicker, contextMeter, autoFocus } = props
   const textarea = useRef<HTMLTextAreaElement>(null)
   const filePicker = useRef<HTMLInputElement>(null)
   const listId = useId()
@@ -177,7 +179,7 @@ export function Composer(props: Props) {
             {fileNote}
           </p>
         )}
-        <div className="flex min-w-0 items-center gap-1 px-2.5 pb-2.5">
+        <div className="flex min-w-0 items-center gap-1 px-2.5 pb-2.5 @max-md:gap-0.5 @max-md:px-1">
           <input
             ref={filePicker}
             type="file"
@@ -204,7 +206,8 @@ export function Composer(props: Props) {
               <span className="truncate @max-md:hidden">{folder.path ? folderName(folder.path) : 'Choose folder'}</span>
             </button>
           )}
-          <div className="ml-auto flex min-w-0 items-center gap-1">
+          {permissionPicker}
+          <div className="ml-auto flex min-w-0 items-center gap-1 @max-md:gap-0.5">
             {contextMeter}
             {modelPicker}
             {running && onStop ? (

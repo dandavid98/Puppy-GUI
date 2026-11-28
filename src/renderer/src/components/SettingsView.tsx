@@ -3,6 +3,7 @@ import { FileText, Monitor, Moon, RotateCw, Sun, Download, type LucideIcon } fro
 import type { AppInfo, QuotaSnapshot, Settings, ThemePreference, UpdateOutcome } from '@shared/api'
 import { prettyPath } from '../lib/format'
 import type { AppState } from '../state/store'
+import { FallbackSettings } from './FallbackSettings'
 import { ModelPicker } from './ModelPicker'
 import { BUTTON, Page, Section } from './ui/Page'
 import { Switch } from './ui/Switch'
@@ -134,6 +135,10 @@ export function SettingsView({ settings, model, quota, onRefreshQuota, modelErro
 
         <Section title="Quota" description="Your real Code Puppy quota. The rings next to each model show where it stands.">
           <QuotaSettings quota={quota} onRefresh={onRefreshQuota} />
+        </Section>
+
+        <Section title="Usage limits" description="What Puppy does when a model runs out of usage in the middle of a request.">
+          <FallbackSettings fallback={settings.modelFallback} model={model} onChange={(modelFallback) => onUpdate({ modelFallback })} />
         </Section>
 
         <Section title="Thinking process">

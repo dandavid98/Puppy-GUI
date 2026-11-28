@@ -8,6 +8,7 @@ import { AgentsView } from './components/AgentsView'
 import { ContextMeter } from './components/ContextMeter'
 import { McpView } from './components/McpView'
 import { ModelPicker } from './components/ModelPicker'
+import { PermissionPicker } from './components/PermissionPicker'
 import { SettingsView } from './components/SettingsView'
 import { Sidebar } from './components/Sidebar'
 import { ThreadView } from './components/ThreadView'
@@ -54,6 +55,7 @@ export function App() {
       onOpen={() => void actions.refreshQuota()}
     />
   )
+  const permissionPicker = <PermissionPicker value={thread ? thread.permission : state.newChatPermission} onChange={actions.setPermission} />
   const contextLength = state.modelContexts[state.model?.currentValue ?? ''] ?? DEFAULT_CONTEXT_LENGTH
   const contextMeter = <ContextMeter used={thread?.contextTokens ?? null} total={contextLength} model={state.model?.currentValue} />
 
@@ -107,7 +109,8 @@ export function App() {
           key={thread.sessionId} // a fresh view per conversation: no scroll position, draft or attachments carried over
           thread={thread}
           showWork={state.settings?.thinkingMode === true}          permissions={state.permissions.filter((prompt) => prompt.sessionId === thread.sessionId)}
-          modelPicker={modelPicker}
+          permissionPicker={permissionPicker}
+        modelPicker={modelPicker}
           contextMeter={contextMeter}
           commands={state.commands}
           onSend={(text, attachments) => void actions.send(text, attachments)}
@@ -125,6 +128,7 @@ export function App() {
         name={state.settings?.displayName ?? ''}
         folder={state.folder}
         recentFolders={recentFolders(state.sessions)}
+        permissionPicker={permissionPicker}
         modelPicker={modelPicker}
         contextMeter={contextMeter}
         commands={state.commands}

@@ -1,12 +1,15 @@
 import { EventEmitter } from 'node:events'
 import { mkdirSync, statSync } from 'node:fs'
 import type { ContentBlock, McpServer, NewSessionResponse, PromptResponse, SessionConfigOption, SessionInfo, SessionNotification } from '@agentclientprotocol/sdk'
-import type { Attachment, OpenedSession, SessionSummary, TurnResult, WorkspaceKind } from '@shared/api'
+import type { Attachment, ModelSwitch, OpenedSession, SessionSummary, TurnResult, WorkspaceKind } from '@shared/api'
 import { DEFAULT_CONTEXT_LENGTH } from '@shared/limits'
+import type { PermissionLevel } from '@shared/permissions'
 import { cleanTitle, titleFrom, titlePrompt, titleSource } from '@shared/titles'
 import { estimateContext, readTurnUsage } from './context'
 import type { AgentPool } from './acp/agentPool'
+import { confirmedLevel, PermissionLevels } from './acp/permissionLevels'
 import { deletePersistedSession } from './acp/sessionStore'
+import { RETRY_NOTE, type ModelFallback } from './modelFallback'
 import { promptBlocks } from './promptBlocks'
 import type { SessionIndex, SessionMeta } from './sessionIndex'
 import type { SettingsStore } from './settings'
@@ -51,7 +54,7 @@ export function newestFirst(a: SessionSummary, b: SessionSummary): number {
  * smart title arrived), and `turn` whenever a model turn finished (the
  * user's quota has moved).
  */
-export class Workspace extends EventEmitter<{ changed: []; turn: [] }> {
+export class Workspace extends EventEmitter<{ changed: []; turn: []; modelSwitched: [ModelSwitch] }> {
   /** Folders this app has worked in this run: the only places previews may read from. */
   readonly roots = new Set<string>()
 
@@ -63,12 +66,20 @@ export class Workspace extends EventEmitter<{ changed: []; turn: [] }> {
     private readonly contextLengths: () => Record<string, number>,
     /** The user's MCP servers, for conversations (not for throwaway sessions such as titles). */
     private readonly mcpServers: () => Promise<McpServer[]> = async () => [],
+    /** Each chat's permission level (the same one the agents consult when Code Puppy asks). */
+    private readonly levels: PermissionLevels = new PermissionLevels(),
+    /** What to do when a turn runs into the main model's usage limit; without it, such a turn simply fails. */
+    private readonly fallback?: ModelFallback,
   ) {
     super()
   }
 
   /** The model code-puppy last told us it is using; sizes the context window. */
   private currentModel: string | null = null
+
+  get model(): string | null {
+    return this.currentModel
+  }
   /** Which folder (so which process) each open session lives in. */
   private readonly sessionFolders = new Map<string, string>()
 
@@ -109,7 +120,7 @@ export class Workspace extends EventEmitter<{ changed: []; turn: [] }> {
     this.roots.add(cwd)
     this.rememberModel(response.configOptions)
     this.index.create(response.sessionId, kind)
-    return { sessionId: response.sessionId, cwd, kind, configOptions: response.configOptions ?? [] }
+    return { sessionId: response.sessionId, cwd, kind, permission: 'standard', configOptions: response.configOptions ?? [] }
   }
 
   /** Re-opens a saved session; Code Puppy replays its history as session/update notifications. */
@@ -121,7 +132,37 @@ export class Workspace extends EventEmitter<{ changed: []; turn: [] }> {
     this.roots.add(cwd)
     this.rememberModel(response.configOptions)
     const kind = this.index.get(sessionId)?.kind ?? 'code'
-    return { sessionId, cwd, kind, configOptions: response.configOptions ?? [] }
+    return { sessionId, cwd, kind, permission: await this.restorePermission(sessionId), configOptions: response.configOptions ?? [] }
+  }
+
+  /**
+   * Changes how much Code Puppy may do in a chat without asking. Takes effect at once, even in a
+   * turn that is running. Anything but standard needs Code Puppy to say it applied the level (a
+   * Code Puppy that silently ignored it would make "ask every time" a promise nobody keeps), so
+   * if it cannot, this throws and the chat stays as it was.
+   */
+  async setPermissionLevel(sessionId: string, level: PermissionLevel): Promise<PermissionLevel> {
+    const context = await this.contextFor(sessionId)
+    const response = await context.request('session/set_mode', { sessionId, modeId: level })
+    if (level !== 'standard' && confirmedLevel(response) !== level) {
+      throw new Error("This version of Code Puppy can't change permission levels, so the chat stays on Standard.")
+    }
+    this.levels.set(sessionId, level)
+    this.index.update(sessionId, { permission: level })
+    return level
+  }
+
+  /** A reopened chat gets its level back. If Code Puppy cannot, it is standard, and says so. */
+  private async restorePermission(sessionId: string): Promise<PermissionLevel> {
+    const saved = this.index.get(sessionId)?.permission
+    if (!saved || saved === 'standard') return 'standard'
+    try {
+      return await this.setPermissionLevel(sessionId, saved)
+    } catch {
+      this.levels.set(sessionId, 'standard')
+      this.index.update(sessionId, { permission: 'standard' })
+      return 'standard'
+    }
   }
 
   rename(sessionId: string, title: string): void {
@@ -131,6 +172,8 @@ export class Workspace extends EventEmitter<{ changed: []; turn: [] }> {
 
   async remove(sessionId: string): Promise<void> {
     await this.close(sessionId)
+    this.levels.forget(sessionId)
+    this.fallback?.forget(sessionId)
     this.index.remove(sessionId)
   }
 
@@ -140,7 +183,7 @@ export class Workspace extends EventEmitter<{ changed: []; turn: [] }> {
     const source = titleSource(text, attachments)
     this.index.update(sessionId, { updatedAt: new Date().toISOString(), title: meta?.title ?? titleFrom(source) })
 
-    const { response, toolCalls } = await this.runPrompt(sessionId, promptBlocks(text, attachments))
+    const { response, toolCalls } = await this.runWithFallback(sessionId, promptBlocks(text, attachments))
     if (firstTurn && response.stopReason === 'end_turn') void this.smartTitle(sessionId, source)
 
     const previous = meta?.contextTokens ?? null
@@ -160,6 +203,29 @@ export class Workspace extends EventEmitter<{ changed: []; turn: [] }> {
   private rememberModel(options: SessionConfigOption[] | null | undefined): void {
     const model = options?.find((option) => option.id === MODEL_OPTION)
     if (model && typeof model.currentValue === 'string') this.currentModel = model.currentValue
+  }
+
+  /**
+   * One turn. If it stopped on the main model's usage limit and the user chose a fallback, it is the same
+   * turn again on the secondary model; if the switch cannot be made, the user gets the error as usual.
+   */
+  private async runWithFallback(sessionId: string, blocks: ContentBlock[]): Promise<{ response: PromptResponse; toolCalls: number }> {
+    const first = await this.runPrompt(sessionId, blocks)
+    const handover = this.fallback?.take(sessionId)
+    if (!handover) return first
+    const { plan, giveBack } = handover
+    let configOptions: SessionConfigOption[] = []
+    try {
+      configOptions = (await this.setModel(plan.to, sessionId)) ?? []
+    } catch {
+      /* handled below: what matters is whether the model really changed */
+    }
+    if (this.currentModel !== plan.to) {
+      giveBack()
+      return first
+    }
+    this.emit('modelSwitched', { sessionId, from: plan.from, to: plan.to, configOptions })
+    return this.runPrompt(sessionId, first.toolCalls > 0 ? [...blocks, { type: 'text', text: RETRY_NOTE }] : blocks)
   }
 
   /** One prompt turn, with its tool calls counted (each one costs a model request). */

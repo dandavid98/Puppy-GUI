@@ -1,4 +1,5 @@
 import type { WorkspaceKind } from '@shared/api'
+import type { PermissionLevel } from '@shared/permissions'
 import { readJson, writeJsonAtomic } from './jsonFile'
 
 export interface SessionMeta {
@@ -13,6 +14,8 @@ export interface SessionMeta {
   pinned?: boolean
   /** The user's folder it is filed in (see folders.ts). Absent when it is not in one. */
   folderId?: string
+  /** How much Code Puppy may do in it without asking; absent is standard. Kept so reopening a chat restores it. */
+  permission?: PermissionLevel
 }
 
 /**

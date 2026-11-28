@@ -3,6 +3,9 @@ import { basename, join } from 'node:path'
 import { app, BrowserWindow, nativeTheme, powerMonitor, session, shell } from 'electron'
 import { AgentPool } from './acp/agentPool'
 import { PuppyAgent } from './acp/puppyAgent'
+import { Push } from '@shared/api'
+import { PermissionLevels } from './acp/permissionLevels'
+import { ModelFallback } from './modelFallback'
 import { AgentCatalog } from './agentCatalog'
 import { ConnectionService } from './connections'
 import { FolderStore } from './folders'
@@ -118,9 +121,11 @@ void app.whenReady().then(() => {
 
   // One Code Puppy per project folder; chats and scratch sessions share the one started in the chat folder.
   const chatDir = join(data, 'chat-workspace')
-  const agents = new AgentPool((folder) => new PuppyAgent(locateCodePuppy, folder, info.logPath, info.version, () => agentChosen), chatDir)
+  const levels = new PermissionLevels()
+  const agents = new AgentPool((folder) => new PuppyAgent(locateCodePuppy, folder, info.logPath, info.version, () => agentChosen, (sessionId) => levels.get(sessionId)), chatDir)
   const index = new SessionIndex(join(data, 'sessions.json'))
-  const workspace = new Workspace(agents, index, settings, chatDir, () => readContextLengths(), () => mcp.sessionServers())
+  const fallback = new ModelFallback(() => settings.get().modelFallback, () => workspace.model, (notification) => mainWindow?.webContents.send(Push.sessionUpdate, notification))
+  const workspace: Workspace = new Workspace(agents, index, settings, chatDir, () => readContextLengths(), () => mcp.sessionServers(), levels, fallback)
   const organizer = new Organizer(index, new FolderStore(join(data, 'folders.json')))
 
   // The user's real quota, read through code-puppy's own Python (never touching their token).
@@ -132,7 +137,7 @@ void app.whenReady().then(() => {
   allowLocalFraming(session.defaultSession)
   const vpn = new VpnWatch()
   const updates = new UpdateWatch(() => updateAvailable({ appPath: app.getAppPath(), packaged: app.isPackaged }))
-  registerIpc({ agents, workspace, organizer, settings, quota, vpn, updates, info, previewDir, window: () => mainWindow })
+  registerIpc({ agents, fallback, workspace, organizer, settings, quota, vpn, updates, info, previewDir, window: () => mainWindow })
   registerCatalogIpc({ catalog, mcp, connections, agents, settings, window: () => mainWindow, push: (channel, payload) => mainWindow?.webContents.send(channel, payload) })
   openWindow()
   mkdirSync(chatDir, { recursive: true }) // the home process starts in it

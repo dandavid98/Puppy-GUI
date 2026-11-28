@@ -1,10 +1,10 @@
-import type { SessionNotification } from '@agentclientprotocol/sdk'
+import type { SessionConfigOption, SessionNotification } from '@agentclientprotocol/sdk'
 import type { Attachment, OpenedSession, SessionSummary, Settings } from '@shared/api'
 import { describe, expect, it } from 'vitest'
-import { initialState, reducer, type Action, type AppState } from './store'
+import { initialState, modelOption, reducer, type Action, type AppState } from './store'
 
-const settings = (autoPreview: boolean): Settings => ({ theme: 'system', displayName: 'Dan', smartTitles: true, autoPreview, thinkingMode: false, defaultAgent: null })
-const session: OpenedSession = { sessionId: 's1', cwd: '/work/app', kind: 'code', configOptions: [] }
+const settings = (autoPreview: boolean): Settings => ({ theme: 'system', displayName: 'Dan', smartTitles: true, autoPreview, thinkingMode: false, defaultAgent: null, modelFallback: { enabled: false, main: null, secondary: null } })
+const session: OpenedSession = { sessionId: 's1', cwd: '/work/app', kind: 'code', permission: 'standard', configOptions: [] }
 
 const AT = '2026-11-25T10:00:00.000Z'
 const run = (state: AppState, ...actions: Action[]) => actions.reduce(reducer, state)
@@ -190,5 +190,49 @@ describe('asking for an agent', () => {
   it('tells a repeat of the same request apart, so the box fills again', () => {
     const twice = run(initialState, { type: 'ask', text: 'same' }, { type: 'ask', text: 'same' })
     expect(twice.draft).toEqual({ text: 'same', id: 2 })
+  })
+})
+
+describe('permission levels', () => {
+  it('start a chat at the level it was opened with, and change only that chat', () => {
+    const other: OpenedSession = { ...session, sessionId: 's2', permission: 'ask' }
+    const state = run(initialState, { type: 'opened', session }, { type: 'opened', session: other })
+    expect([state.threads.s1.permission, state.threads.s2.permission]).toEqual(['standard', 'ask'])
+
+    const changed = run(state, { type: 'permissionLevel', sessionId: 's1', level: 'full' })
+    expect([changed.threads.s1.permission, changed.threads.s2.permission]).toEqual(['full', 'ask'])
+    expect(run(state, { type: 'permissionLevel', sessionId: 'gone', level: 'full' })).toEqual(state) // a closed chat is not revived
+  })
+
+  it('holds the home screen\'s choice for the chat about to start, then starts the next one standard again', () => {
+    const chosen = run(initialState, { type: 'newChatPermission', level: 'full' })
+    expect(chosen.newChatPermission).toBe('full')
+    expect(run(chosen, { type: 'opened', session }).newChatPermission).toBe('standard')
+  })
+})
+
+describe('a switch of model after a usage limit', () => {
+  const models = (current: string): SessionConfigOption[] => [
+    { id: 'model', name: 'Model', category: 'model', type: 'select', currentValue: current, options: [
+      { value: 'claude-opus-5-5', name: 'Claude Opus 5.5' },
+      { value: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5' },
+    ] },
+  ]
+  const change = { sessionId: 's1', from: 'claude-opus-5-5', to: 'claude-sonnet-5-5', configOptions: models('claude-sonnet-5-5') }
+
+  it('shows the new model in the picker, and tells that chat what happened in the models\' own names', () => {
+    const state = run({ ...initialState, model: modelOption(models('claude-opus-5-5')) }, { type: 'opened', session }, { type: 'modelSwitched', change })
+    expect(state.model?.currentValue).toBe('claude-sonnet-5-5')
+    const note = state.threads.s1.items.at(-1)
+    expect(note).toMatchObject({ type: 'note' })
+    expect(note && 'text' in note && note.text).toBe(
+      'Claude Opus 5.5 has reached its usage limit, so Puppy switched to Claude Sonnet 5.5 and carried on. You can switch back from the model menu once your limit resets.',
+    )
+  })
+
+  it('leaves other chats alone, and falls back to the ids when the list is not known', () => {
+    const state = run(initialState, { type: 'opened', session }, { type: 'opened', session: { ...session, sessionId: 's2' } }, { type: 'modelSwitched', change: { ...change, configOptions: [] } })
+    expect(state.threads.s2.items).toEqual([])
+    expect(state.threads.s1.items.at(-1)).toMatchObject({ text: expect.stringContaining('claude-opus-5-5 has reached its usage limit') })
   })
 })

@@ -1,4 +1,4 @@
-import { Brain, ChevronRight, CircleX, PawPrint } from 'lucide-react'
+import { ArrowRightLeft, Brain, ChevronRight, CircleX, PawPrint } from 'lucide-react'
 import type { AttachmentPreview, ThreadItem } from '../state/thread'
 import { AttachmentChips } from './AttachmentChips'
 import { CopyButton, Markdown } from './Markdown'
@@ -50,6 +50,15 @@ function ErrorMessage({ text }: { text: string }) {
   )
 }
 
+function NoteMessage({ text }: { text: string }) {
+  return (
+    <div role="status" className="flex items-start gap-2 rounded-xl bg-raised px-4 py-3 text-sm text-muted">
+      <ArrowRightLeft size={16} aria-hidden className="mt-0.5 shrink-0" />
+      <span className="selectable">{text}</span>
+    </div>
+  )
+}
+
 /** Shown while a turn runs and nothing is streaming yet. */
 export function Thinking() {
   return (
@@ -70,6 +79,8 @@ export function Message({ item, showWork = false }: { item: ThreadItem; /** Thin
       return <Thought text={item.text} open={showWork} />
     case 'error':
       return <ErrorMessage text={item.text} />
+    case 'note':
+      return <NoteMessage text={item.text} />
     case 'tool':
       return <ToolCallCard call={item.call} open={showWork} />
   }

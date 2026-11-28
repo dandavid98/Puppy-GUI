@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import type { Attachment, ChatFolder, FolderPatch, SessionSummary, Settings, WorkspaceKind } from '@shared/api'
+import type { PermissionLevel } from '@shared/permissions'
 import { isLocalUrl, previewTarget, webTarget, type PreviewTarget } from '@shared/preview'
 import { loadLists } from './loadLists'
 import { initialState, reducer, type Action } from './store'
@@ -55,6 +56,7 @@ export function usePuppy() {
       api.onSessionsChanged(() => void refreshSessions()),
       api.onQuota((quota) => dispatch({ type: 'quota', quota })),
       api.onVpnStatus((status) => dispatch({ type: 'vpn', status })),
+      api.onModelSwitched((change) => dispatch({ type: 'modelSwitched', change })),
       api.onUpdateAvailable((available) => dispatch({ type: 'updateAvailable', available })),
       api.onMcpState((mcp) => dispatch({ type: 'mcp', state: mcp })),
     ]
@@ -81,7 +83,7 @@ export function usePuppy() {
     loadModels()
   }, [state.status.state, refreshSessions, loadModels])
 
-  const { activeId, mode, folder, threads, pendingUrl } = state
+  const { activeId, mode, folder, threads, pendingUrl, newChatPermission } = state
   const activeRef = useRef(activeId)
   activeRef.current = activeId
 
@@ -105,6 +107,17 @@ export function usePuppy() {
           const session = await api.newSession(mode, folder ?? undefined)
           dispatch({ type: 'opened', session })
           sessionId = session.sessionId
+          if (newChatPermission !== 'standard') {
+            try {
+              dispatch({ type: 'permissionLevel', sessionId, level: await api.setPermissionLevel(sessionId, newChatPermission) })
+            } catch (error) {
+              // Never run a chat looser or stricter than the user asked for: show their message, and why it was not sent.
+              dispatch({ type: 'sent', sessionId, text, attachments, at: new Date().toISOString() })
+              dispatch({ type: 'finished', sessionId, error: `${readableError(error)} Your message was not sent.` })
+              void refreshSessions()
+              return
+            }
+          }
         }
         dispatch({ type: 'sent', sessionId, text, attachments, at: new Date().toISOString() })
         const turn = await api.prompt(sessionId, text, attachments)
@@ -115,17 +128,18 @@ export function usePuppy() {
       }
       void refreshSessions()
     },
-    [activeId, mode, folder, refreshSessions],
+    [activeId, mode, folder, newChatPermission, refreshSessions],
   )
 
   const open = useCallback(
     async (summary: SessionSummary) => {
       if (threads[summary.sessionId]) return dispatch({ type: 'activate', sessionId: summary.sessionId })
       // Create the thread first: Code Puppy replays history while session/load is in flight.
-      dispatch({ type: 'opened', session: { ...summary, configOptions: [] }, contextTokens: summary.contextTokens, replaying: true })
+      dispatch({ type: 'opened', session: { ...summary, permission: 'standard', configOptions: [] }, contextTokens: summary.contextTokens, replaying: true })
       try {
         const session = await api.loadSession(summary.sessionId, summary.cwd)
         dispatch({ type: 'config', configOptions: session.configOptions })
+        dispatch({ type: 'permissionLevel', sessionId: summary.sessionId, level: session.permission })
         dispatch({ type: 'replayed', sessionId: summary.sessionId })
       } catch (error) {
         dispatch({ type: 'finished', sessionId: summary.sessionId, error: readableError(error) })
@@ -175,6 +189,11 @@ export function usePuppy() {
         dispatch({ type: 'permissionAnswered', requestId })
         void api.answerPermission(requestId, optionId)
       },
+      /** On a chat: Code Puppy applies it (and may refuse, which is said). On the home screen: for the chat that is about to start. */
+      setPermission: (level: PermissionLevel) =>
+        activeId
+          ? guard(async () => dispatch({ type: 'permissionLevel', sessionId: activeId, level: await api.setPermissionLevel(activeId, level) }))
+          : dispatch({ type: 'newChatPermission', level }),
       setModel: (value: string) =>
         guard(async () => dispatch({ type: 'config', configOptions: await api.setModel(value, activeId ?? undefined) })),
       renameSession: (sessionId: string, title: string) =>

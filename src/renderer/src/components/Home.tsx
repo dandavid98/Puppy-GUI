@@ -11,6 +11,7 @@ interface Props {
   name: string
   folder: string | null
   recentFolders: string[]
+  permissionPicker: ReactNode
   modelPicker: ReactNode
   contextMeter: ReactNode
   commands: AvailableCommand[]
@@ -29,7 +30,7 @@ const STARTERS = [
 ]
 
 /** The empty state: greeting, a big composer, and quick starts. */
-export function Home({ mode, name, folder, recentFolders, modelPicker, contextMeter, commands, onSend, onChooseFolder, onSelectFolder, initialDraft = '' }: Props) {
+export function Home({ mode, name, folder, recentFolders, permissionPicker, modelPicker, contextMeter, commands, onSend, onChooseFolder, onSelectFolder, initialDraft = '' }: Props) {
   const [draft, setDraft] = useState(initialDraft)
   const [sending, setSending] = useState(false)
   const isCode = mode === 'code'
@@ -42,7 +43,7 @@ export function Home({ mode, name, folder, recentFolders, modelPicker, contextMe
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 pb-24">
-      <div className="w-full max-w-2xl">
+      <div className="w-full max-w-3xl">
         <h1 className="mb-8 flex items-center justify-center gap-3 text-center font-serif text-4xl tracking-tight">
           <PawPrint size={34} aria-hidden className="text-accent" />
           {isCode ? 'What are we building?' : name ? `${greeting()}, ${name}` : greeting()}
@@ -57,6 +58,7 @@ export function Home({ mode, name, folder, recentFolders, modelPicker, contextMe
           autoFocus
           placeholder={isCode ? (folder ? `Ask about ${folderName(folder)} or describe a change...` : 'Choose a folder, then describe what you want...') : 'How can I help you today?'}
           folder={isCode ? { path: folder, onChoose: onChooseFolder } : undefined}
+          permissionPicker={permissionPicker}
           modelPicker={modelPicker}
           contextMeter={contextMeter}
         />

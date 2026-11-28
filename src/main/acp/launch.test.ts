@@ -77,4 +77,67 @@ print("DEAD", asyncio.run(enter_dead()))
     expect(stdout).toContain('DEAD {}') // nothing listening: no tools, no error
     expect(stderr).toContain('is unreachable, so its tools are left out')
   }, 90_000)
+
+  // Run in-process, as the ACP server does: a session's run is a ContextVar, so `begin_run` is all it takes to be "in" a chat.
+  const LEVELS = `
+import asyncio
+from types import SimpleNamespace
+import code_puppy.config as config
+from code_puppy_core_plugins.acp import state
+from code_puppy_core_plugins.acp.agent import CodePuppyAgent
+from code_puppy_core_plugins.file_permission_handler import register_callbacks as files
+
+me = SimpleNamespace()
+async def set_mode(mode, session):
+    response = await CodePuppyAgent.set_session_mode(me, mode, session)
+    return (response.field_meta or {}).get("puppy", {}).get("permission")
+
+def yolo_in(session):
+    state.begin_run(session)
+    try:
+        return (config.get_yolo_mode(), files.get_yolo_mode())  # the function, and a module that imported it by name
+    finally:
+        state.end_run()
+`
+
+  it('answers the yolo question per chat: ask is off, full is on, standard is whatever the user set', async () => {
+    const { stdout, stderr } = await inCodePuppy(`${LEVELS}
+config.set_cli_yolo_override(True)  # a user with yolo on
+print("ECHO", asyncio.run(set_mode("ask", "a")), asyncio.run(set_mode("full", "f")), asyncio.run(set_mode("standard", "s")))
+print("ON", yolo_in("a"), yolo_in("f"), yolo_in("s"), yolo_in("never-set"), "outside", config.get_yolo_mode())
+config.set_cli_yolo_override(False)  # a user with yolo off
+print("OFF", yolo_in("a"), yolo_in("f"), yolo_in("s"), yolo_in("never-set"), "outside", config.get_yolo_mode())
+asyncio.run(set_mode("standard", "a"))  # back to standard forgets it
+config.set_cli_yolo_override(True)
+print("BACK", yolo_in("a"))
+print("OTHER", asyncio.run(set_mode("plan", "a")))  # a mode that is not ours is left alone
+`)
+    expect(stderr).not.toContain('unavailable')
+    expect(stdout).toContain('ECHO ask full standard')
+    expect(stdout).toContain('ON (False, False) (True, True) (True, True) (True, True) outside True')
+    expect(stdout).toContain('OFF (False, False) (True, True) (False, False) (False, False) outside False')
+    expect(stdout).toContain('BACK (True, True)')
+    expect(stdout).toContain('OTHER None')
+  }, 90_000)
+
+  it('keeps two chats running at once apart, and is safe to install twice', async () => {
+    const { stdout } = await inCodePuppy(`${LEVELS}
+asyncio.run(set_mode("ask", "strict"))
+asyncio.run(set_mode("full", "loose"))
+install_permission_levels()  # again: must not lose what was set
+
+async def run(session):
+    state.begin_run(session)
+    await asyncio.sleep(0.01)  # the other run starts in between
+    answer = config.get_yolo_mode()
+    await asyncio.sleep(0.01)
+    return answer
+
+async def both():
+    return await asyncio.gather(*(asyncio.ensure_future(run(s)) for s in ("strict", "loose", "strict", "loose")))
+
+print("BOTH", asyncio.run(both()))
+`)
+    expect(stdout).toContain('BOTH [False, True, False, True]')
+  }, 90_000)
 })

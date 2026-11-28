@@ -1,5 +1,6 @@
 import { Sparkles } from 'lucide-react'
 import type { QuotaSnapshot } from '@shared/api'
+import { modelChoices } from '../state/models'
 import type { AppState } from '../state/store'
 import { ModelQuotaRing } from './ModelQuotaRing'
 import { QuotaSummary } from './QuotaSummary'
@@ -19,14 +20,12 @@ interface Props {
 
 export function ModelPicker({ model, value, onChange, placement = 'top', variant = 'quiet', quota, onOpen }: Props) {
   if (!model) return null
-  const options = model.options
-    .flatMap((entry) => ('options' in entry ? entry.options : [entry]))
-    .map((option) => ({
-      value: option.value,
-      label: option.name,
-      description: option.description ?? undefined,
-      trailing: quota ? <ModelQuotaRing quota={quota} model={option.value} name={option.name} /> : undefined,
-    }))
+  const options = modelChoices(model).map((choice) => ({
+    value: choice.value,
+    label: choice.name,
+    description: choice.description,
+    trailing: quota ? <ModelQuotaRing quota={quota} model={choice.value} name={choice.name} /> : undefined,
+  }))
   const footer =
     quota === undefined ? undefined : quota ? (
       <QuotaSummary quota={quota} />

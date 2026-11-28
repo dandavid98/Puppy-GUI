@@ -31,8 +31,15 @@ test('a page the agent touched can be previewed in the side panel', async () => 
   const box = await page().getByLabel('Message Code Puppy').locator('xpath=ancestor::div[contains(@class,"rounded-2xl")][1]').boundingBox()
   expect(send!.x + send!.width).toBeLessThanOrEqual(box!.x + box!.width)
   // ...and the folder name gives way before the model name does: you must always see which model you are on.
+  // Measured on the text itself, not scrollWidth: that is a rounded integer, so a name clipped by a fraction of
+  // a pixel ties with its box and passes, while Chrome still replaces its last characters with an ellipsis.
   const modelName = page().getByRole('button', { name: /^Model:/ }).locator('span.truncate')
-  expect(await modelName.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  const clippedBy = await modelName.evaluate((el) => {
+    const text = document.createRange()
+    text.selectNodeContents(el)
+    return text.getBoundingClientRect().width - el.getBoundingClientRect().width // the box fits its text, so this is 0 unless it is squeezed
+  })
+  expect(clippedBy).toBeLessThanOrEqual(0)
   await shot(page(), '09-preview')
 
   await panel().getByRole('button', { name: 'Close preview' }).click()

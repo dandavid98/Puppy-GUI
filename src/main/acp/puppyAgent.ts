@@ -15,6 +15,7 @@ import type { Agent } from './agentPool'
 import { jsonLinesOnly } from './jsonLinesOnly'
 import { acpLaunch } from './launch'
 import { PermissionBroker } from './permissionBroker'
+import type { PermissionLevel } from '@shared/permissions'
 
 type Events = {
   status: [AgentStatus]
@@ -35,7 +36,7 @@ export class PuppyAgent extends EventEmitter<Events> implements Agent {
   private current: AgentStatus = { state: 'starting' }
   /** Bumped by stop(), so a boot still waiting on `beforeStart` knows not to go ahead. */
   private generation = 0
-  private readonly permissions = new PermissionBroker((prompt) => this.emit('permissionRequest', prompt))
+  private readonly permissions: PermissionBroker
 
   constructor(
     private readonly locateBinary: () => string,
@@ -45,8 +46,11 @@ export class PuppyAgent extends EventEmitter<Events> implements Agent {
     private readonly version: string,
     /** Awaited before each start: e.g. choosing the agent, which Code Puppy reads once, as it starts. */
     private readonly beforeStart: () => Promise<unknown> = async () => undefined,
+    /** How much each chat may do without asking: at full access its permission questions are answered "allow". */
+    levelOf: (sessionId: string) => PermissionLevel = () => 'standard',
   ) {
     super()
+    this.permissions = new PermissionBroker((prompt) => this.emit('permissionRequest', prompt), levelOf)
   }
 
   get status(): AgentStatus {

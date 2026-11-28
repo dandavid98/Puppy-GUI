@@ -5,6 +5,7 @@
  * (src/preload/index.ts), and the renderer consumes it. Channel names live
  * here too, so the three layers can never drift apart.
  */
+import type { PermissionLevel } from './permissions'
 import type { PreviewTarget } from './preview'
 import type {
   PermissionOption,
@@ -30,6 +31,28 @@ export interface Settings {
   thinkingMode: boolean
   /** The agent new chats in Puppy use (null: Code Puppy's own default). Never changes the terminal's. */
   defaultAgent: string | null
+  /** What to do when the main model hits its usage limit in the middle of a turn. */
+  modelFallback: ModelFallbackSettings
+}
+
+/**
+ * Off until the user turns it on. When the main model runs out of quota during a turn,
+ * Puppy switches to the secondary one and carries on. Both are model names from Code
+ * Puppy's list; the feature does nothing until both are chosen, and they differ.
+ */
+export interface ModelFallbackSettings {
+  enabled: boolean
+  main: string | null
+  secondary: string | null
+}
+
+/** A turn that ran into a usage limit, and what Puppy did about it. */
+export interface ModelSwitch {
+  sessionId: string
+  from: string
+  to: string
+  /** The model list as it stands now, so the picker shows the new model. */
+  configOptions: SessionConfigOption[]
 }
 
 /** One of Code Puppy's agents. */
@@ -238,6 +261,8 @@ export type FolderPatch = Partial<Pick<ChatFolder, 'name' | 'pinned' | 'collapse
 
 /** What the UI needs after `session/new` or `session/load`. */
 export interface OpenedSession {
+  /** How much Code Puppy may do in this chat without asking. */
+  permission: PermissionLevel
   sessionId: string
   cwd: string
   kind: WorkspaceKind
@@ -270,6 +295,8 @@ export interface PuppyApi {
   listSessions(): Promise<SessionSummary[]>
   newSession(kind: WorkspaceKind, cwd?: string): Promise<OpenedSession>
   loadSession(sessionId: string, cwd: string): Promise<OpenedSession>
+  /** Changes how much Code Puppy may do in a chat without asking. Rejects (and changes nothing) if Code Puppy cannot honor it. */
+  setPermissionLevel(sessionId: string, level: PermissionLevel): Promise<PermissionLevel>
   renameSession(sessionId: string, title: string): Promise<void>
   deleteSession(sessionId: string): Promise<void>
   pinSession(sessionId: string, pinned: boolean): Promise<void>
@@ -334,6 +361,8 @@ export interface PuppyApi {
   onSessionsChanged(listener: () => void): Unsubscribe
   onQuota(listener: (quota: QuotaSnapshot | null) => void): Unsubscribe
   onVpnStatus(listener: (status: VpnStatus) => void): Unsubscribe
+  /** A turn hit the main model's usage limit and Puppy moved to the secondary model (see ModelFallbackSettings). */
+  onModelSwitched(listener: (change: ModelSwitch) => void): Unsubscribe
   onUpdateAvailable(listener: (available: boolean) => void): Unsubscribe
   /** Start Code Puppy for a project folder ahead of the first message, so that message is not slow. */
   prepareFolder(path: string): Promise<void>
@@ -367,6 +396,7 @@ export const Invoke = {
   listSessions: 'session:list',
   newSession: 'session:new',
   loadSession: 'session:load',
+  setPermissionLevel: 'session:set-permission',
   renameSession: 'session:rename',
   deleteSession: 'session:delete',
   pinSession: 'session:pin',
@@ -416,6 +446,7 @@ export const Push = {
   sessionsChanged: 'session:list-changed',
   quota: 'quota:changed',
   vpn: 'vpn:changed',
+  modelSwitched: 'model:switched',
   updateAvailable: 'app:update-available-changed',
   mcpState: 'mcp:state-changed',
 } as const

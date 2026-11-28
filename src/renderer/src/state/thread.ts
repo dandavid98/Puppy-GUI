@@ -14,7 +14,7 @@ export interface AttachmentPreview {
 
 export type ThreadItem =
   | { type: 'user'; id: string; text: string; attachments?: AttachmentPreview[] }
-  | { type: 'assistant' | 'thought' | 'error'; id: string; text: string }
+  | { type: 'assistant' | 'thought' | 'error' | 'note'; id: string; text: string }
   | { type: 'tool'; id: string; call: ToolCallView }
 
 type TextKind = 'user' | 'assistant' | 'thought'
@@ -76,4 +76,9 @@ export function addUserMessage(items: ThreadItem[], text: string, attachments: A
 
 export function addError(items: ThreadItem[], text: string): ThreadItem[] {
   return [...items, { type: 'error', id: `error-${items.length}`, text }]
+}
+
+/** Something Puppy itself did that the user should know, as opposed to an error or something Code Puppy said. */
+export function addNote(items: ThreadItem[], text: string): ThreadItem[] {
+  return [...items, { type: 'note', id: `note-${items.length}`, text }]
 }

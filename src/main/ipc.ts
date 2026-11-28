@@ -1,7 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } from 'electron'
 import { Invoke, Push, type AppInfo, type Settings } from '@shared/api'
+import { isPermissionLevel } from '@shared/permissions'
 import { isLocalUrl, previewTarget } from '@shared/preview'
 import type { AgentPool } from './acp/agentPool'
+import type { ModelFallback } from './modelFallback'
 import { waitForServer } from './localServer'
 import { readContextLengths } from './modelCatalog'
 import type { Organizer } from './organizer'
@@ -15,6 +17,8 @@ import type { Workspace } from './workspace'
 
 interface Deps {
   agents: AgentPool
+  /** Where the agents' updates go on their way to the window. */
+  fallback: ModelFallback
   workspace: Workspace
   organizer: Organizer
   settings: SettingsStore
@@ -33,10 +37,11 @@ export function applyTheme(settings: Settings): void {
 }
 
 /** Wires the `window.puppy` contract (src/shared/api.ts) to the main process. */
-export function registerIpc({ agents, workspace, organizer, settings, quota, vpn, updates, info, previewDir, window }: Deps): void {
+export function registerIpc({ agents, fallback, workspace, organizer, settings, quota, vpn, updates, info, previewDir, window }: Deps): void {
   const push = (channel: string, payload?: unknown) => window()?.webContents.send(channel, payload)
   agents.on('status', (status) => push(Push.status, status))
-  agents.on('sessionUpdate', (notification) => push(Push.sessionUpdate, notification))
+  agents.on('sessionUpdate', (notification) => fallback.route(notification)) // on to the window, unless it is a limit about to be handled
+  workspace.on('modelSwitched', (change) => push(Push.modelSwitched, change))
   agents.on('permissionRequest', (prompt) => push(Push.permissionRequest, prompt))
   workspace.on('changed', () => push(Push.sessionsChanged))
   quota.on('changed', (snapshot) => push(Push.quota, snapshot))
@@ -76,6 +81,10 @@ export function registerIpc({ agents, workspace, organizer, settings, quota, vpn
   ipcMain.handle(Invoke.listSessions, () => workspace.list())
   ipcMain.handle(Invoke.newSession, (_event, kind, cwd) => workspace.create(kind, cwd))
   ipcMain.handle(Invoke.loadSession, (_event, sessionId, cwd) => workspace.load(sessionId, cwd))
+  ipcMain.handle(Invoke.setPermissionLevel, (_event, sessionId, level) => {
+    if (!isPermissionLevel(level)) throw new Error('Unknown permission level.')
+    return workspace.setPermissionLevel(String(sessionId), level)
+  })
   ipcMain.handle(Invoke.renameSession, (_event, sessionId, title) => workspace.rename(sessionId, title))
   ipcMain.handle(Invoke.deleteSession, (_event, sessionId) => workspace.remove(sessionId))
   ipcMain.handle(Invoke.pinSession, (_event, sessionId, pinned) => organizer.pin(String(sessionId), pinned))

@@ -1,10 +1,12 @@
 import { execFileSync } from 'node:child_process'
-import { THEMES, type Settings } from '@shared/api'
+import { THEMES, type ModelFallbackSettings, type Settings } from '@shared/api'
 import { readJson, writeJsonAtomic } from './jsonFile'
 
 const MAX_NAME = 40
 /** Code Puppy agent names: "code-puppy", "qa-kitten", "my_agent.v2". */
 const AGENT_NAME = /^[\w.-]{1,80}$/
+/** Code Puppy model names: "claude-sonnet-5-5", "gpt-5.6-sol". */
+const MODEL_NAME = /^[\w.:/@+-]{1,120}$/
 
 /** First name from the macOS account ("Doe, Jane" and "Jane Doe" both give "Jane"). */
 export function firstNameFrom(fullName: string): string {
@@ -20,6 +22,19 @@ function accountFirstName(): string {
   }
 }
 
+/** The fallback pair, field by field: a patch may carry only what changed. */
+function mergeFallback(current: ModelFallbackSettings, patch: unknown): ModelFallbackSettings {
+  if (typeof patch !== 'object' || patch === null) return current
+  const next = { ...current }
+  const fields = patch as Record<string, unknown>
+  if (typeof fields.enabled === 'boolean') next.enabled = fields.enabled
+  for (const key of ['main', 'secondary'] as const) {
+    const model = fields[key]
+    if (model === null || (typeof model === 'string' && MODEL_NAME.test(model))) next[key] = model
+  }
+  return next
+}
+
 /** Merge untrusted input (IPC or a hand-edited file) field by field; junk is ignored. */
 export function mergeSettings(current: Settings, patch: Partial<Record<keyof Settings, unknown>>): Settings {
   const next = { ...current }
@@ -33,6 +48,7 @@ export function mergeSettings(current: Settings, patch: Partial<Record<keyof Set
   if (patch.defaultAgent === null || (typeof patch.defaultAgent === 'string' && AGENT_NAME.test(patch.defaultAgent))) {
     next.defaultAgent = patch.defaultAgent as string | null
   }
+  next.modelFallback = mergeFallback(current.modelFallback, patch.modelFallback)
   return next
 }
 
@@ -47,6 +63,7 @@ export class SettingsStore {
       autoPreview: true,
       thinkingMode: false, // opt-in: it is a lot to look at
       defaultAgent: null,
+      modelFallback: { enabled: false, main: null, secondary: null }, // opt-in: it spends the other model's quota
     }
     this.current = mergeSettings(defaults, readJson(path, {}))
   }
