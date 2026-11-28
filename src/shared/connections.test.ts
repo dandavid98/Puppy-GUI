@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { connectionHealth, formatRemaining, guessVariables, SOON_MS } from './connections'
+import { connectionHealth, formatAgo, formatRemaining, guessVariables, SOON_MS } from './connections'
 
 const HOUR = 3_600_000
 const NOW = 1_000_000_000_000
@@ -39,6 +39,19 @@ describe('guessVariables', () => {
   it('leaves both empty when nothing looks right', () => {
     expect(guessVariables(vars('PORT', 'HOST'))).toEqual({ token: '', account: '' })
     expect(guessVariables([])).toEqual({ token: '', account: '' })
+  })
+})
+
+describe('formatAgo', () => {
+  it('says it the way a person would, with the right plural', () => {
+    expect(formatAgo(10_000)).toBe('just now')
+    expect(formatAgo(-5_000)).toBe('just now')
+    expect(formatAgo(60_000)).toBe('1 minute ago')
+    expect(formatAgo(5 * 60_000)).toBe('5 minutes ago')
+    expect(formatAgo(HOUR)).toBe('1 hour ago')
+    expect(formatAgo(3 * HOUR + 59_000)).toBe('3 hours ago')
+    expect(formatAgo(24 * HOUR)).toBe('1 day ago')
+    expect(formatAgo(9 * 24 * HOUR)).toBe('9 days ago')
   })
 })
 

@@ -79,13 +79,7 @@ export function App() {
           removeServer={actions.removeMcpServer}
           setServerEnabled={actions.setMcpServerEnabled}
           signIn={actions.signInToMcp}
-          listConnections={actions.listConnections}
-          addConnection={actions.addConnection}
-          removeConnection={actions.removeConnection}
-          chooseConnectionFile={actions.chooseConnectionFile}
-          inspectConnectionFile={actions.inspectConnectionFile}
-          previewConnection={actions.previewConnection}
-          openConnectionRenewal={actions.openConnectionRenewal}
+          connections={actions}
         />
       )
     }

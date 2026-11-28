@@ -1,12 +1,15 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { AGENT, expect, test, useApp } from './fixtures'
 
-// A throwaway profile, and a throwaway "ScanMatcher" .env.local whose token the test rewrites to age it.
+// A throwaway profile, and a throwaway home folder with some of what a real one holds: a project whose
+// .env.local token the test rewrites to age it, a second project, and clutter that must not be offered.
 const profile = mkdtempSync(join(tmpdir(), 'puppy-e2e-connections-'))
-const envFile = join(mkdtempSync(join(tmpdir(), 'puppy-e2e-scanmatcher-')), '.env.local')
-const { page } = useApp({ PUPPY_DESKTOP_USER_DATA: profile })
+const home = mkdtempSync(join(tmpdir(), 'puppy-e2e-home-'))
+const envFile = join(home, 'Desktop', 'work', 'scan-matcher', '.env.local')
+const keyFile = join(home, 'Documents', 'team-api', '.env')
+const { page } = useApp({ PUPPY_DESKTOP_USER_DATA: profile, PUPPY_DESKTOP_SEARCH_HOME: home })
 
 const HOUR = 3_600_000
 const EMAIL = 'daniel@walmart.com'
@@ -14,11 +17,21 @@ const base64url = (value: object) => Buffer.from(JSON.stringify(value)).toString
 /** A login token ending `inMs` from now, as ProductWatch's do. */
 const tokenEnding = (inMs: number) => `${base64url({ alg: 'HS256' })}.${base64url({ exp: Math.floor((Date.now() + inMs) / 1000), email: EMAIL })}.not-a-real-signature`
 let token = ''
+const put = (file: string, text: string) => {
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, text)
+}
 const writeToken = (inMs: number) => {
   token = tokenEnding(inMs)
-  writeFileSync(envFile, `PW_BASE_URL="https://pw.example.com"\nPW_EMAIL="${EMAIL}"\nPW_TOKEN="${token}"\n`)
+  put(envFile, `PW_BASE_URL="https://pw.example.com"\nPW_EMAIL="${EMAIL}"\nPW_TOKEN="${token}"\n`)
 }
-test.beforeAll(() => writeToken(3 * 24 * HOUR))
+test.beforeAll(() => {
+  put(keyFile, 'API_KEY=plain-key-123\nUSERNAME=team@walmart.com\n')
+  put(join(home, 'Documents', 'Q3 sales', 'forecast.xlsx'), 'not a token file')
+  put(join(home, 'Desktop', 'work', 'scan-matcher', '.env.local.bak'), 'PW_TOKEN=an-old-copy\n')
+  put(join(home, 'Desktop', 'work', 'scan-matcher', '.env.example'), 'PW_TOKEN=changeme\n')
+  writeToken(3 * 24 * HOUR) // written last, so it is the newest
+})
 
 const list = () => page().getByRole('list', { name: 'Connections' })
 const row = (name: string) => list().getByRole('listitem').filter({ has: page().getByRole('heading', { name, exact: true }) })
@@ -37,7 +50,18 @@ test('a token file is added by choosing it: Puppy guesses the lines and previews
   const form = page().getByRole('form', { name: 'Add a connection' })
   await expect(form.getByRole('button', { name: /ProductWatch/ })).toHaveCount(0) // nothing in the form is specific to one tool
 
-  await form.getByLabel('File that holds the token').fill(envFile)
+  // Puppy finds the token files itself, newest first, in words rather than paths; clutter is left out.
+  const found = form.getByRole('list', { name: 'Token files Puppy found' }).getByRole('listitem')
+  await expect(found).toHaveCount(2)
+  await expect(found.first()).toContainText(/scan-matcher\s*\.env\.local/)
+  await expect(found.first()).toContainText('~/Desktop/work/scan-matcher')
+  await expect(found.first()).toContainText(/changed (just now|\d+ minutes? ago)/)
+  await expect(found.nth(1)).toContainText(/team-api\s*\.env/)
+  await expect(form).not.toContainText(/forecast|\.bak|example/)
+  await shootConnections('connections-suggestions')
+
+  await found.first().getByRole('button').click()
+  await expect(found.first().getByRole('button')).toHaveAttribute('aria-pressed', 'true')
   await expect(form.getByLabel('Which line is the token?')).toHaveValue('PW_TOKEN') // guessed from what is in the file
   await expect(form.getByLabel('Which line says whose it is? (optional)')).toHaveValue('PW_EMAIL')
   await expect(form.getByRole('radio', { name: 'The token says when' })).toBeChecked() // it is a login token that names its end
@@ -84,13 +108,10 @@ test('a renewed token is noticed once the user checks again (as when returning t
 test('a file that cannot be used says why; a plain key asks how it expires; connections can be removed', async () => {
   await page().getByRole('button', { name: 'Add connection' }).click()
   const form = page().getByRole('form', { name: 'Add a connection' })
-  const file = form.getByLabel('File that holds the token')
-  await file.fill(join(dirname(envFile), 'missing.env'))
+  await form.getByLabel('Or look for it yourself').fill(join(dirname(envFile), 'missing.env'))
   await expect(form.getByRole('alert')).toHaveText('Puppy cannot read missing.env.')
 
-  const keyFile = join(dirname(envFile), 'team.env')
-  writeFileSync(keyFile, 'API_KEY=plain-key-123\nUSERNAME=team@walmart.com\n')
-  await file.fill(keyFile)
+  await form.getByRole('button', { name: /team-api/ }).click()
   await expect(form.getByLabel('Which line is the token?')).toHaveValue('API_KEY')
   await expect(form.getByLabel('Which line says whose it is? (optional)')).toHaveValue('USERNAME')
   await expect(form.getByRole('radio', { name: 'The token says when' })).toBeDisabled() // a plain key cannot say
@@ -102,7 +123,7 @@ test('a file that cannot be used says why; a plain key asks how it expires; conn
   await expect(form.locator('[aria-live=polite]')).toContainText('Connected · expires')
   await form.getByRole('button', { name: 'Add connection' }).click()
   await expect(row('Team API')).toContainText('team@walmart.com')
-  await expect(row('Team API')).toContainText('Counted from when team.env last changed.')
+  await expect(row('Team API')).toContainText('Counted from when .env last changed.')
 
   await page().getByRole('button', { name: 'Remove Team API' }).click()
   await page().getByRole('button', { name: 'Remove ProductWatch' }).click()

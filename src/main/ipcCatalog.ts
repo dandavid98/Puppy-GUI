@@ -1,8 +1,10 @@
+import { homedir } from 'node:os'
 import { dialog, ipcMain, type BrowserWindow } from 'electron'
 import { Invoke, Push, type AgentList, type ConnectionDraft } from '@shared/api'
 import type { AgentPool } from './acp/agentPool'
 import type { AgentCatalog } from './agentCatalog'
 import type { ConnectionService } from './connections'
+import { findTokenFiles } from './envFiles'
 import type { McpService } from './mcpServers'
 import { openWebPage } from './preview'
 import type { SettingsStore } from './settings'
@@ -16,6 +18,9 @@ interface Deps {
   window: () => BrowserWindow | null
   push: (channel: string, payload?: unknown) => void
 }
+
+/** Where to look for a person's token files. Their home folder; a test can point it somewhere harmless. */
+const searchHome = () => process.env.PUPPY_DESKTOP_SEARCH_HOME || homedir()
 
 /** The Agents and MCP servers pages. */
 export function registerCatalogIpc({ catalog, mcp, connections, agents, settings, window, push }: Deps): void {
@@ -43,6 +48,7 @@ export function registerCatalogIpc({ catalog, mcp, connections, agents, settings
   ipcMain.handle(Invoke.listMcpCatalog, () => mcp.catalog())
 
   ipcMain.handle(Invoke.listConnections, () => connections.list())
+  ipcMain.handle(Invoke.findConnectionFiles, () => findTokenFiles(searchHome()))
   ipcMain.handle(Invoke.inspectConnectionFile, (_event, file) => connections.inspectFile(String(file)))
   ipcMain.handle(Invoke.previewConnection, (_event, draft) => connections.preview((draft ?? {}) as ConnectionDraft))
   ipcMain.handle(Invoke.addConnection, (_event, draft) => connections.add((draft ?? {}) as ConnectionDraft))
@@ -54,8 +60,13 @@ export function registerCatalogIpc({ catalog, mcp, connections, agents, settings
   })
   ipcMain.handle(Invoke.chooseConnectionFile, async () => {
     const parent = window()
-    // Hidden files shown: tokens live in files like .env.local.
-    const options = { title: 'Choose the file that holds the token', properties: ['openFile' as const, 'showHiddenFiles' as const] }
+    // Hidden files shown: tokens live in files like .env.local. Starts in the home folder, and says what to look for.
+    const options = {
+      title: 'Choose the file that holds the token',
+      message: 'Look for a file named .env or .env.local, usually inside your project\'s folder.',
+      defaultPath: searchHome(),
+      properties: ['openFile' as const, 'showHiddenFiles' as const],
+    }
     const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
     return result.canceled ? null : result.filePaths[0]
   })

@@ -27,6 +27,16 @@ export function connectionHealth({ state, expiresAt }: Pick<ConnectionInfo, 'sta
   return expiresAt - now < SOON_MS ? 'soon' : 'ok'
 }
 
+/** "just now", "5 minutes ago", "3 hours ago", "2 days ago": for a file changed `ms` ago. */
+export function formatAgo(ms: number): string {
+  const minutes = Math.floor(Math.max(ms, 0) / 60_000)
+  const unit = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'} ago`
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return unit(minutes, 'minute')
+  if (minutes < 1_440) return unit(Math.floor(minutes / 60), 'hour')
+  return unit(Math.floor(minutes / 1_440), 'day')
+}
+
 /** "6d 16h", "5h 12m", "8m": the two biggest units, which is all a person plans around. */
 export function formatRemaining(ms: number): string {
   const minutes = Math.floor(ms / 60_000)

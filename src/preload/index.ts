@@ -55,6 +55,7 @@ const api: PuppyApi = {
   addConnection: (draft) => ipcRenderer.invoke(Invoke.addConnection, draft),
   removeConnection: (id) => ipcRenderer.invoke(Invoke.removeConnection, id),
   chooseConnectionFile: () => ipcRenderer.invoke(Invoke.chooseConnectionFile),
+  findConnectionFiles: () => ipcRenderer.invoke(Invoke.findConnectionFiles),
   inspectConnectionFile: (file) => ipcRenderer.invoke(Invoke.inspectConnectionFile, file),
   previewConnection: (draft) => ipcRenderer.invoke(Invoke.previewConnection, draft),
   openConnectionRenewal: (id) => ipcRenderer.invoke(Invoke.openConnectionRenewal, id),

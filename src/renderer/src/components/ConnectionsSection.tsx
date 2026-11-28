@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Plus, RefreshCw } from 'lucide-react'
-import type { ConnectionDraft, ConnectionFileVariable, ConnectionInfo, McpState } from '@shared/api'
+import type { ConnectionActions, ConnectionInfo, McpState } from '@shared/api'
 import { readableError } from '../state/usePuppy'
 import { ConnectionForm } from './ConnectionForm'
 import { ConnectionRow } from './ConnectionRow'
@@ -9,13 +9,7 @@ import { BUTTON, Section } from './ui/Page'
 interface Props {
   /** Changes when the Walmart sign-in does: the list is read again. */
   signedIn: boolean | null | undefined
-  list: () => Promise<ConnectionInfo[]>
-  add: (draft: ConnectionDraft) => Promise<ConnectionInfo[]>
-  remove: (id: string) => Promise<ConnectionInfo[]>
-  chooseFile: () => Promise<string | null>
-  inspectFile: (file: string) => Promise<ConnectionFileVariable[]>
-  preview: (draft: ConnectionDraft) => Promise<ConnectionInfo | null>
-  openRenewal: (id: string) => Promise<void>
+  actions: ConnectionActions
   signIn: () => Promise<McpState>
 }
 
@@ -23,7 +17,8 @@ interface Props {
 const TICK_MS = 60_000
 
 /** What the user's logins and keys are, and when each ends. Read again whenever the window regains focus: a token is often renewed in another app. */
-export function ConnectionsSection({ signedIn, list, add, remove, chooseFile, inspectFile, preview, openRenewal, signIn }: Props) {
+export function ConnectionsSection({ signedIn, actions, signIn }: Props) {
+  const { listConnections: list, removeConnection: remove, openConnectionRenewal: openRenewal } = actions
   const [rows, setRows] = useState<ConnectionInfo[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now)
@@ -105,10 +100,7 @@ export function ConnectionsSection({ signedIn, list, add, remove, chooseFile, in
       )}
       {adding && (
         <ConnectionForm
-          add={add}
-          chooseFile={chooseFile}
-          inspectFile={inspectFile}
-          preview={preview}
+          actions={actions}
           onDone={() => {
             setAdding(false)
             load()

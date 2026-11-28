@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { FolderOpen } from 'lucide-react'
-import type { ConnectionDraft, ConnectionExpiry, ConnectionFileVariable, ConnectionInfo } from '@shared/api'
+import type { ConnectionActions, ConnectionDraft, ConnectionExpiry, ConnectionFileVariable, ConnectionInfo } from '@shared/api'
 import { guessVariables } from '@shared/connections'
 import { readableError } from '../state/usePuppy'
 import { statusLine } from './ConnectionRow'
+import { FileSuggestions } from './FileSuggestions'
 import { BUTTON } from './ui/Page'
 
 const INPUT = 'mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-accent/60 focus:outline-none'
@@ -11,10 +12,7 @@ const INPUT = 'mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 te
 const TYPING_MS = 400
 
 interface Props {
-  add: (draft: ConnectionDraft) => Promise<ConnectionInfo[]>
-  chooseFile: () => Promise<string | null>
-  inspectFile: (file: string) => Promise<ConnectionFileVariable[]>
-  preview: (draft: ConnectionDraft) => Promise<ConnectionInfo | null>
+  actions: ConnectionActions
   onDone: () => void
 }
 
@@ -38,7 +36,8 @@ const folderName = (file: string) => file.split('/').filter(Boolean).slice(-2, -
  * the file; Puppy reads the line names (never values), guesses which is the token
  * and whose it is, and previews the result, so for most files it is one confirm.
  */
-export function ConnectionForm({ add, chooseFile, inspectFile, preview, onDone }: Props) {
+export function ConnectionForm({ actions, onDone }: Props) {
+  const { addConnection: add, chooseConnectionFile: chooseFile, inspectConnectionFile: inspectFile, previewConnection: preview } = actions
   const id = useId()
   const [file, setFile] = useState('')
   const [variables, setVariables] = useState<ConnectionFileVariable[] | null>(null)
@@ -116,12 +115,14 @@ export function ConnectionForm({ add, chooseFile, inspectFile, preview, onDone }
         Show a token that lives in a file on this Mac, and when it expires. Puppy only reads the file, and only the names of its lines.
       </p>
 
-      <Field label="File that holds the token" htmlFor={`${id}-file`} hint="A file of NAME=value lines, such as .env.local.">
+      <FileSuggestions find={actions.findConnectionFiles} selected={file} onPick={setFile} />
+
+      <Field label="Or look for it yourself" htmlFor={`${id}-file`} hint="Token files are usually named .env or .env.local, inside your project's folder.">
         <div className="flex gap-2">
-          <input id={`${id}-file`} value={file} onChange={(event) => setFile(event.target.value)} placeholder="/Users/you/project/.env.local" autoComplete="off" spellCheck={false} className={INPUT} />
+          <input id={`${id}-file`} value={file} onChange={(event) => setFile(event.target.value)} placeholder="Paste its location here" autoComplete="off" spellCheck={false} className={INPUT} />
           <button type="button" onClick={() => void chooseFile().then((chosen) => chosen && setFile(chosen))} className={`${BUTTON} mt-1 shrink-0`}>
             <FolderOpen size={14} aria-hidden />
-            Choose file
+            Browse
           </button>
         </div>
         {fileError && <p role="alert" className="mt-2 text-sm text-danger">{fileError}</p>}

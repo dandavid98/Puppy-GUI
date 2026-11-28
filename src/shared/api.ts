@@ -131,6 +131,18 @@ export interface ConnectionFileVariable {
   selfExpiring: boolean
 }
 
+/** A file Puppy found that looks like it holds a token, described the way a person would say it. */
+export interface ConnectionFileSuggestion {
+  file: string
+  /** The file's own name, such as .env.local. */
+  name: string
+  /** The folder it is in: usually the project's name. */
+  folder: string
+  /** That folder's place, with the home folder as ~. */
+  where: string
+  modifiedMs: number
+}
+
 /** How an added connection's token ends. */
 export type ConnectionExpiry = { kind: 'token' } | { kind: 'days'; days: number } | { kind: 'none' }
 
@@ -304,6 +316,8 @@ export interface PuppyApi {
   removeConnection(id: string): Promise<ConnectionInfo[]>
   /** A file picker that shows hidden files (a `.env.local`); null if cancelled. */
   chooseConnectionFile(): Promise<string | null>
+  /** Token files Puppy found in the user's own folders, newest first. */
+  findConnectionFiles(): Promise<ConnectionFileSuggestion[]>
   /** The names of the lines in a token file (never their values), or why it cannot be used. */
   inspectConnectionFile(file: string): Promise<ConnectionFileVariable[]>
   /** How the connection would look if added now, so the user sees it before saving; null while the form is incomplete. */
@@ -326,6 +340,19 @@ export interface PuppyApi {
 }
 
 /** Request/response channels (ipcRenderer.invoke ⇄ ipcMain.handle). */
+/** Everything the Connections list does: handed to the page as one piece rather than eight. */
+export type ConnectionActions = Pick<
+  PuppyApi,
+  | 'listConnections'
+  | 'addConnection'
+  | 'removeConnection'
+  | 'chooseConnectionFile'
+  | 'findConnectionFiles'
+  | 'inspectConnectionFile'
+  | 'previewConnection'
+  | 'openConnectionRenewal'
+>
+
 export const Invoke = {
   getStatus: 'agent:get-status',
   restartAgent: 'agent:restart',
@@ -374,6 +401,7 @@ export const Invoke = {
   removeConnection: 'connections:remove',
   chooseConnectionFile: 'connections:choose-file',
   inspectConnectionFile: 'connections:inspect-file',
+  findConnectionFiles: 'connections:find-files',
   previewConnection: 'connections:preview',
   openConnectionRenewal: 'connections:open-renewal',
   listMcpCatalog: 'mcp:catalog',
