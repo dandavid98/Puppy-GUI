@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { formatTokens, percentOf } from '../lib/tokens'
+import { CHIP } from './ui/chip'
 import { ProgressBar } from './ui/ProgressBar'
 import { ALIGN, PLACEMENT, POPOVER, useDismiss, useFlipToFit } from './ui/popover'
 import { ProgressRing } from './ui/ProgressRing'
@@ -44,14 +45,14 @@ export function ContextMeter({ used, total, model }: Props) {
         aria-label={label}
         aria-haspopup="dialog"
         aria-expanded={open}
-        title={known ? `${formatTokens(used)} of ${formatTokens(total)} used` : 'Context window'}
+        title={known ? `Context window: ${formatTokens(used)} of ${formatTokens(total)} tokens used` : 'Context window: how much of the conversation the model can hold'}
         data-testid="context-meter"
         data-known={known}
         onClick={() => (open ? close() : setOpen(true))}
-        className="inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-xs text-muted hover:bg-raised hover:text-ink"
+        className={CHIP}
       >
-        <ProgressRing percent={percent} size={18} showValue={false} muted={!known} />
-        <span className="tabular-nums">{known ? formatTokens(used) : '–'}</span>
+        <ProgressRing percent={percent} size={13} showValue={false} muted={!known} />
+        <span className="tabular-nums">Context {known ? `${percent}%` : '–'}</span>
       </button>
 
       {open && (

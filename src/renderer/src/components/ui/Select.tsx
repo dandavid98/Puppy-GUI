@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Check, ChevronDown, Search } from 'lucide-react'
+import { CHIP } from './chip'
 import { ALIGN, PLACEMENT, POPOVER, useDismiss, useFlipToFit } from './popover'
 
 export interface SelectOption {
@@ -18,8 +19,10 @@ interface Props {
   placement?: keyof typeof PLACEMENT
   align?: keyof typeof ALIGN
   icon?: ReactNode
-  /** Visual style of the trigger: quiet (inline in toolbars) or field (forms). */
-  variant?: 'quiet' | 'field'
+  /** Visual style of the trigger: a chip (under the message box) or a field (forms). */
+  variant?: 'chip' | 'field'
+  /** What the control is for, shown on hover (the trigger itself shows only the value). */
+  hint?: string
   /** Shown on the trigger while `value` is empty (nothing chosen yet). */
   placeholder?: string
   /** Called each time the menu opens. */
@@ -31,12 +34,12 @@ interface Props {
 const SEARCH_THRESHOLD = 8
 
 const TRIGGER = {
-  quiet: 'rounded-lg px-2 py-1.5 text-sm text-muted hover:bg-raised hover:text-ink',
+  chip: CHIP,
   field: 'w-full justify-between rounded-lg border border-line bg-surface px-3 py-2 text-sm hover:border-muted/60',
 } as const
 
 /** Accessible listbox dropdown in the app's own style (replaces native <select>). */
-export function Select({ label, value, options, onChange, placement = 'bottom', align = 'start', icon, variant = 'quiet', placeholder, onOpen, footer }: Props) {
+export function Select({ label, value, options, onChange, placement = 'bottom', align = 'start', icon, variant = 'chip', hint, placeholder, onOpen, footer }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -112,6 +115,7 @@ export function Select({ label, value, options, onChange, placement = 'bottom', 
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`${label}: ${shown}`}
+        title={hint}
         onClick={() => (open ? close() : openMenu())}
         onKeyDown={(event) => {
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -123,7 +127,7 @@ export function Select({ label, value, options, onChange, placement = 'bottom', 
       >
         {icon}
         <span className="truncate">{shown}</span>
-        <ChevronDown size={14} aria-hidden className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={variant === 'chip' ? 12 : 14} aria-hidden className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (

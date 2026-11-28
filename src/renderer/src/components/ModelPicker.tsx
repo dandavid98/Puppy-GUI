@@ -4,6 +4,7 @@ import { modelChoices } from '../state/models'
 import type { AppState } from '../state/store'
 import { ModelQuotaRing } from './ModelQuotaRing'
 import { QuotaSummary } from './QuotaSummary'
+import { CHIP_ICON } from './ui/chip'
 import { Select } from './ui/Select'
 
 interface Props {
@@ -11,14 +12,14 @@ interface Props {
   value: string | undefined
   onChange: (value: string) => void
   placement?: 'top' | 'bottom'
-  variant?: 'quiet' | 'field'
+  variant?: 'chip' | 'field'
   /** The user's real quota: undefined while loading, null when it cannot be read. */
   quota?: QuotaSnapshot | null
   /** The menu was opened: a good moment to refresh the quota. */
   onOpen?: () => void
 }
 
-export function ModelPicker({ model, value, onChange, placement = 'top', variant = 'quiet', quota, onOpen }: Props) {
+export function ModelPicker({ model, value, onChange, placement = 'top', variant = 'chip', quota, onOpen }: Props) {
   if (!model) return null
   const options = modelChoices(model).map((choice) => ({
     value: choice.value,
@@ -43,7 +44,8 @@ export function ModelPicker({ model, value, onChange, placement = 'top', variant
       placement={placement}
       align={variant === 'field' ? 'start' : 'end'}
       variant={variant}
-      icon={variant === 'quiet' ? <Sparkles size={14} aria-hidden /> : undefined}
+      hint={variant === 'chip' ? 'Model for this chat' : undefined}
+      icon={variant === 'chip' ? <Sparkles size={CHIP_ICON} aria-hidden /> : undefined}
     />
   )
 }

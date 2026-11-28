@@ -7,6 +7,7 @@ import { matchCommands } from '../lib/commands'
 import { folderName, prettyPath } from '../lib/format'
 import { previewOf } from '../state/thread'
 import { AttachmentChips } from './AttachmentChips'
+import { CHIP, CHIP_ICON } from './ui/chip'
 import { commandOptionId, SlashMenu } from './SlashMenu'
 
 interface Props {
@@ -19,10 +20,9 @@ interface Props {
   commands: AvailableCommand[]
   /** Code mode only: the project folder chip. */
   folder?: { path: string | null; onChoose: () => void }
-  /** How much Code Puppy may do without asking; sits right after the folder. */
+  /** The chips under the box: folder and permissions on the left, context and model on the right. */
   permissionPicker?: ReactNode
   modelPicker?: ReactNode
-  /** Sits just left of the model picker. */
   contextMeter?: ReactNode
   autoFocus?: boolean
 }
@@ -133,8 +133,7 @@ export function Composer(props: Props) {
   }
 
   return (
-    // @container: the toolbar below adapts to the composer's own width (it is narrow beside the preview panel).
-    <div className="@container relative">
+    <div className="relative">
       {menuOpen && <SlashMenu id={listId} commands={suggestions} active={activeCommand} onHover={setActiveCommand} onPick={pickCommand} />}
       <div
         onDragOver={(event) => {
@@ -179,7 +178,8 @@ export function Composer(props: Props) {
             {fileNote}
           </p>
         )}
-        <div className="flex min-w-0 items-center gap-1 px-2.5 pb-2.5 @max-md:gap-0.5 @max-md:px-1">
+        {/* Inside the box: only what acts on the message. Everything about the chat is in the chips below. */}
+        <div className="flex items-center justify-between px-2.5 pb-2.5">
           <input
             ref={filePicker}
             type="file"
@@ -193,39 +193,41 @@ export function Composer(props: Props) {
           <button type="button" onClick={() => filePicker.current?.click()} aria-label="Attach files" title="Attach files" className={`${ICON_BUTTON} shrink-0`}>
             <Paperclip size={17} aria-hidden />
           </button>
-          {folder && (
+          {running && onStop ? (
+            <button type="button" onClick={onStop} aria-label="Stop" className="grid size-8 shrink-0 place-items-center rounded-lg bg-ink text-canvas hover:opacity-85">
+              <Square size={12} fill="currentColor" aria-hidden />
+            </button>
+          ) : (
             <button
               type="button"
-              onClick={folder.onChoose}
-              title={folder.path ? prettyPath(folder.path) : 'Choose a project folder'}
-              aria-label={folder.path ? `Project folder: ${folderName(folder.path)}` : 'Choose folder'}
-              className="inline-flex min-w-0 max-w-64 shrink-[3] items-center gap-1.5 rounded-lg border border-line px-2 py-1 text-sm text-muted hover:bg-raised hover:text-ink"
+              onClick={submit}
+              disabled={!canSend}
+              aria-label="Send message"
+              className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-on-accent hover:opacity-90 disabled:opacity-40"
             >
-              <FolderOpen size={15} aria-hidden />
-              {/* In a narrow composer the chip shrinks to its icon so the model name stays readable. */}
-              <span className="truncate @max-md:hidden">{folder.path ? folderName(folder.path) : 'Choose folder'}</span>
+              <ArrowUp size={17} aria-hidden />
             </button>
           )}
-          {permissionPicker}
-          <div className="ml-auto flex min-w-0 items-center gap-1 @max-md:gap-0.5">
-            {contextMeter}
-            {modelPicker}
-            {running && onStop ? (
-              <button type="button" onClick={onStop} aria-label="Stop" className="grid size-8 shrink-0 place-items-center rounded-lg bg-ink text-canvas hover:opacity-85">
-                <Square size={12} fill="currentColor" aria-hidden />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={submit}
-                disabled={!canSend}
-                aria-label="Send message"
-                className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-on-accent hover:opacity-90 disabled:opacity-40"
-              >
-                <ArrowUp size={17} aria-hidden />
-              </button>
-            )}
-          </div>
+        </div>
+      </div>
+      {/* Small, and they wrap rather than squeeze when the composer is narrow (beside the preview panel). */}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 px-1">
+        {folder && (
+          <button
+            type="button"
+            onClick={folder.onChoose}
+            title={folder.path ? `Project folder: ${prettyPath(folder.path)}` : 'Choose a project folder'}
+            aria-label={folder.path ? `Project folder: ${folderName(folder.path)}` : 'Choose folder'}
+            className={`${CHIP} max-w-56`}
+          >
+            <FolderOpen size={CHIP_ICON} aria-hidden className="shrink-0" />
+            <span className="truncate">{folder.path ? folderName(folder.path) : 'Choose folder'}</span>
+          </button>
+        )}
+        {permissionPicker}
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {contextMeter}
+          {modelPicker}
         </div>
       </div>
     </div>

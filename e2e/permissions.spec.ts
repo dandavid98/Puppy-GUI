@@ -31,6 +31,10 @@ test('the control sits beside the folder, starts on Standard, and offers the thr
   const level = await picker().boundingBox()
   expect(level!.x).toBeGreaterThan(folder!.x + folder!.width - 1) // after the folder, on the same row
   expect(Math.abs(level!.y - folder!.y)).toBeLessThan(12)
+  // Both are small chips under the message box, not inside it: the box itself holds only attach and send.
+  const box = await page().getByLabel('Message Code Puppy').locator('xpath=ancestor::div[contains(@class,"rounded-2xl")][1]').boundingBox()
+  expect(level!.y).toBeGreaterThanOrEqual(box!.y + box!.height)
+  expect(folder!.y).toBeGreaterThanOrEqual(box!.y + box!.height)
 
   await picker().click()
   const options = page().getByRole('listbox', { name: 'Permissions' }).getByRole('option')
