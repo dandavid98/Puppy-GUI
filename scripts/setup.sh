@@ -25,7 +25,8 @@ node -e 'const [major, minor] = process.versions.node.split(".").map(Number); pr
 [ -x "$HOME/.code-puppy-venv/bin/code-puppy" ] || command -v code-puppy >/dev/null ||
   echo "Warning: Code Puppy is not installed. Puppy is a window onto it, so install Code Puppy before opening Puppy."
 # ps, not pgrep: macOS pgrep never matches its own ancestors, so it misses Puppy when Puppy's own agent runs this.
-if ps -axo command= | grep -Fxq "$APP/Contents/MacOS/Puppy"; then
+# And not grep -q: it quits at the first match, ps dies of SIGPIPE, and pipefail turns the match into a failure.
+if ps -axo command= | grep -Fx "$APP/Contents/MacOS/Puppy" >/dev/null; then
   fail "Puppy is open, and an app cannot be replaced while it runs. Use Settings > About > Update Puppy instead (it does all of this for you), or quit Puppy and run setup again."
 fi
 
